@@ -16,13 +16,15 @@ namespace VSS.Wator.Original {
       Age++;
       Energy--;
 
-      var fish = World.SelectNeighbor(typeof(Fish), Position);
+      var fish = World.SelectNeighborOfType<Fish>(Position);
       if (fish != -1) {
         Energy += World.Grid[fish].Energy;
         Move(fish);
       } else {
-        var free = World.SelectNeighbor(null, Position);
-        if (free != -1) Move(free);
+        var free = World.SelectFreeNeighbor(Position);
+          if (free != -1) {
+              Move(free);
+          }
       }
 
       if (Energy >= World.SharkBreedEnergy) Spawn();
@@ -30,7 +32,7 @@ namespace VSS.Wator.Original {
     }
 
     protected override void Spawn() {
-      var free = World.SelectNeighbor(null, Position);
+      var free = World.SelectFreeNeighbor(Position);
         if (free == -1)
             return;
         var shark = new Shark(World, free, Energy / 2);
