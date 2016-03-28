@@ -74,26 +74,23 @@ namespace VSS.Wator.Original
             }
 
             for (var i = 0; i < Width*Height; i++) {
-                if (Grid[i] != null)
-                    Grid[i].Commit();
+                int pos = _randomMatrix[i];
+                if (Grid[pos] != null)
+                    Grid[pos].Commit();
             }
         }
- 
+
         public Bitmap GenerateImage() {
             int counter = 0;
-            for (int y = 0; y < Height; y++)
-                for (int x = 0; x < Width; x++) {
-                    Color col;
-                    if (Grid[x * y] == null)
-                        col = Color.DarkBlue;
-                    else
-                        col = Grid[x * y].Color;
 
-                    _rgbValues[counter++] = col.B; //  // b
-                    _rgbValues[counter++] = col.G; // // g
-                    _rgbValues[counter++] = col.R; //  // R
-                    _rgbValues[counter++] = col.A; //  // a
-                }
+            for (int i = 0; i < Width*Height; i++) {
+                var col = Grid[i] == null ? Color.DarkBlue : Grid[i].Color;
+                _rgbValues[counter++] = col.B; //  // b
+                _rgbValues[counter++] = col.G; // // g
+                _rgbValues[counter++] = col.R; //  // R
+                _rgbValues[counter++] = col.A; //  // a
+            }
+           
             // Lock the bitmap's bits.  
             Rectangle rect = new Rectangle(0, 0, Width, Height);
             var bitmap = new Bitmap(Width, Height);
@@ -121,8 +118,7 @@ namespace VSS.Wator.Original
             switch (direction) {
                 case Direction.Up:
                     pos = position - Width;
-                    if (pos < 0)
-                        pos += maxPosition;
+                    if (pos < 0) pos += maxPosition;
                     return pos;
                 case Direction.Down:
                     pos = position + Width;
@@ -141,25 +137,34 @@ namespace VSS.Wator.Original
             }
         }
 
-        public int SelectNeighbor(Type type, int position) {
+        public int SelectNeighborOfType<T>(int position) {
             ShuffleArray(_directions);
             foreach(var direction in _directions) {
                 var point = GetPosition(direction, position);
-                if (IsCellOfType(point, type))
+                if (IsCellOfType<T>(point))
                     return point;
             }
             return -1;
         }
 
-        private bool IsCellOfType(int position, Type type) {
-            if (type == null && Grid[position] == null) {
-                return true;
+        public int SelectFreeNeighbor(int position) {
+            ShuffleArray(_directions);
+            foreach (var direction in _directions) {
+                var point = GetPosition(direction, position);
+                if (IsCellFree(point))
+                    return point;
             }
-            if ((type != null && Grid[position] == null) ||
-                (type == null && Grid[position] != null)) {
+            return -1;
+        }
+
+        private bool IsCellFree(int position) {
+            return Grid[position] == null;
+        }
+
+        private bool IsCellOfType<T>(int position) {
+            if (Grid[position] == null) 
                 return false;
-            }
-            return Grid[position].GetType() == type;
+            return Grid[position] is T;
         }
 
         private void ShuffleArray<T>(T[] arr) {
