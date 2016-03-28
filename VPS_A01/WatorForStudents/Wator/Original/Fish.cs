@@ -6,7 +6,7 @@ namespace VSS.Wator.Original {
 
     public override Color Color => Color.White;
 
-    public Fish(OriginalWatorWorld world, Point position, int age)
+    public Fish(OriginalWatorWorld world, int position, int age)
       : base(world, position) {
       Energy = world.InitialFishEnergy;
       Age = age;
@@ -16,18 +16,18 @@ namespace VSS.Wator.Original {
       if (Moved) throw new InvalidProgramException("Tried to move a fish twice in one time step.");
       Age++;
 
-      Point free = World.SelectNeighbor(null, Position);
+      var free = World.SelectNeighbor(null, Position);
 
-      if (free.X != -1) Move(free);
+      if (free != -1) Move(free);
       if (Age >= World.FishBreedTime) Spawn();
     }
 
     protected override void Spawn() {
-      Point free = World.SelectNeighbor(null, Position);
-      if (free.X != -1) {
-        Fish fish = new Fish(World, free, 0);
+      var free = World.SelectNeighbor(null, Position);
+        if (free == -1)
+            return;
+        var fish = new Fish(World, free, 0);
         Age -= World.FishBreedTime;
-      }
     }
   }
 }

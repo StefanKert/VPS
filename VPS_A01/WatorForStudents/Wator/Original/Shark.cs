@@ -6,7 +6,7 @@ namespace VSS.Wator.Original {
 
     public override Color Color => Color.Red;
 
-    public Shark(OriginalWatorWorld world, Point position, int energy)
+    public Shark(OriginalWatorWorld world, int position, int energy)
       : base(world, position) {
       Energy = energy;
     }
@@ -16,25 +16,25 @@ namespace VSS.Wator.Original {
       Age++;
       Energy--;
 
-      Point fish = World.SelectNeighbor(typeof(Fish), Position);
-      if (fish.X != -1) {
-        Energy += World.Grid[fish.X, fish.Y].Energy;
+      var fish = World.SelectNeighbor(typeof(Fish), Position);
+      if (fish != -1) {
+        Energy += World.Grid[fish].Energy;
         Move(fish);
       } else {
-        Point free = World.SelectNeighbor(null, Position);
-        if (free.X != -1) Move(free);
+        var free = World.SelectNeighbor(null, Position);
+        if (free != -1) Move(free);
       }
 
       if (Energy >= World.SharkBreedEnergy) Spawn();
-      if (Energy <= 0) World.Grid[Position.X, Position.Y] = null;
+      if (Energy <= 0) World.Grid[Position] = null;
     }
 
     protected override void Spawn() {
-      Point free = World.SelectNeighbor(null, Position);
-      if (free.X != -1) {
-        Shark shark = new Shark(World, free, Energy / 2);
+      var free = World.SelectNeighbor(null, Position);
+        if (free == -1)
+            return;
+        var shark = new Shark(World, free, Energy / 2);
         Energy = Energy / 2;
-      }
     }
   }
 }
