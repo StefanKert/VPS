@@ -47,10 +47,10 @@ namespace VSS.Wator {
       Version = Version.OriginalWatorWorld;
       Workers = 1;
       Runs = 5;
-      Iterations = 1000;
+      Iterations = 100;
       Width = 500;
       Height = 500;
-      DisplayWorld = true;
+      DisplayWorld = false;
       DisplayInterval = 1;
       InitialFishPopulation = 20000;
       InitialFishEnergy = 10;
