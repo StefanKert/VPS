@@ -12,24 +12,21 @@ namespace VSS.Wator.Original {
         }
 
         public override void ExecuteStep() {
-            if (Moved)
-                throw new InvalidProgramException("Tried to move a shark twice within one time step.");
             Age++;
             Energy--;
-
-            var fish = World.SelectNeighborOfType<Fish>(Position);
+            int freeField;
+            var fish = World.SelectNeighborOfType<Fish>(Position, out freeField);
             if (fish != -1) {
                 Energy += World.Grid[fish].Energy;
                 Move(fish);
             }
-            else {
-                var free = World.SelectFreeNeighbor(Position);
-                if (free != -1)
-                    Move(free);
-            }
+            else if (freeField != -1)
+                Move(freeField);
 
-            if (Energy >= World.SharkBreedEnergy)
-                Spawn();
+            if (fish != -1 || freeField != -1) {
+                if (Energy >= World.SharkBreedEnergy)
+                    Spawn();
+            }
             if (Energy <= 0)
                 World.Grid[Position] = null;
         }

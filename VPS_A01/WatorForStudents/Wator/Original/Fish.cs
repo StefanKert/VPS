@@ -12,17 +12,17 @@ namespace VSS.Wator.Original {
       Age = age;
     }
 
-    public override void ExecuteStep() {
-      if (Moved) throw new InvalidProgramException("Tried to move a fish twice in one time step.");
-      Age++;
+      public override void ExecuteStep() {
+          Age++;
+          var free = World.SelectFreeNeighbor(Position);
+          if (free == -1)
+              return;
+          Move(free);
+          if (Age >= World.FishBreedTime)
+              Spawn();
+      }
 
-      var free = World.SelectFreeNeighbor(Position);
-
-      if (free != -1) Move(free);
-      if (Age >= World.FishBreedTime) Spawn();
-    }
-
-    protected override void Spawn() {
+      protected override void Spawn() {
       var free = World.SelectFreeNeighbor(Position);
         if (free == -1)
             return;

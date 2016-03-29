@@ -133,14 +133,16 @@ namespace VSS.Wator.Original
             }
         }
 
-        public int SelectNeighborOfType<T>(int position) {
+        public int SelectNeighborOfType<T>(int position, out int freeField) {
             ShuffleArray(_directions);
+            freeField = -1;
             foreach (var direction in _directions) {
                 var point = GetPosition(direction, position);
                 var animal = Grid[point];
-                // ReSharper disable once UseNullPropagation
-                if (animal == null)
+                if (animal == null) {
+                    freeField = point;
                     continue;
+                }
                 if (animal.Moved)
                     continue;
                 if (animal is T)
@@ -162,6 +164,8 @@ namespace VSS.Wator.Original
         private void ShuffleArray<T>(T[] arr) {
             for (var i = arr.Length - 1; i > 0; i--) {
                 var index = _random.Next(i);
+                if (index == i)
+                    continue;
                 var tmp = arr[index];
                 arr[index] = arr[i];
                 arr[i] = tmp;
