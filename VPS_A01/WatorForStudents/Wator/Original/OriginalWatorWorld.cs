@@ -20,6 +20,7 @@ namespace VSS.Wator.Original
         private readonly Random _random;
         private readonly int[] _randomMatrix;
         private readonly byte[] _rgbValues;
+        private readonly int _maxPosition;
 
         private int Width { get; set; }
         private int Height { get; set; }
@@ -35,13 +36,14 @@ namespace VSS.Wator.Original
 
         public OriginalWatorWorld(Settings settings) {
             CopySettings(settings);
+            _maxPosition = Width * Height;
             _directions = Enum.GetValues(typeof(Direction)).Cast<Direction>().ToArray();
-            _rgbValues = new byte[Width*Height*4];
+            _rgbValues = new byte[_maxPosition * 4];
             _random = new Random();
-            Grid = new Animal[Width * Height];
+            Grid = new Animal[_maxPosition];
 
-            for (var i = 0; i < Width*Height; i++) {
-                var value = _random.Next(Width*Height);
+            for (var i = 0; i < _maxPosition; i++) {
+                var value = _random.Next(_maxPosition);
                 if (value < InitialFishPopulation) 
                     Grid[i] = new Fish(this, i, _random.Next(0, FishBreedTime));
                 else if (value < InitialFishPopulation + InitialSharkPopulation) 
@@ -49,7 +51,7 @@ namespace VSS.Wator.Original
                 else 
                     Grid[i] = null;
             }
-            _randomMatrix = Enumerable.Range(0, Width*Height).ToArray();
+            _randomMatrix = Enumerable.Range(0, _maxPosition).ToArray();
         }
 
         private void CopySettings(Settings settings) {
@@ -66,24 +68,22 @@ namespace VSS.Wator.Original
         public void ExecuteStep() {
             ShuffleArray(_randomMatrix);
 
-            for (var i = 0; i < Width*Height; i++) {
-                var pos = _randomMatrix[i];
-
-                if (Grid[pos] != null && !Grid[pos].Moved)
-                    Grid[pos].ExecuteStep();
+            for (var i = 0; i < _maxPosition; i++) {
+                var animal = Grid[_randomMatrix[i]];
+                if (animal != null && !animal.Moved)
+                    animal.ExecuteStep();
             }
 
-            for (var i = 0; i < Width*Height; i++) {
-                int pos = _randomMatrix[i];
-                if (Grid[pos] != null)
-                    Grid[pos].Commit();
+            for (var i = 0; i < _maxPosition; i++) {
+                var animal = Grid[_randomMatrix[i]];
+                animal?.Commit();
             }
         }
 
         public Bitmap GenerateImage() {
             int counter = 0;
 
-            for (int i = 0; i < Width*Height; i++) {
+            for (int i = 0; i < _maxPosition; i++) {
                 var col = Grid[i] == null ? Color.DarkBlue : Grid[i].Color;
                 _rgbValues[counter++] = col.B; //  // b
                 _rgbValues[counter++] = col.G; // // g
@@ -113,16 +113,15 @@ namespace VSS.Wator.Original
         }
 
         private int GetPosition(Direction direction, int position) {
-            var maxPosition = Width*Height;
             int pos;
             switch (direction) {
                 case Direction.Up:
                     pos = position - Width;
-                    if (pos < 0) pos += maxPosition;
+                    if (pos < 0) pos += _maxPosition;
                     return pos;
                 case Direction.Down:
                     pos = position + Width;
-                    if (pos >= maxPosition) pos -= maxPosition;
+                    if (pos >= _maxPosition) pos -= _maxPosition;
                     return pos;
                 case Direction.Left:
                     pos = position - 1;
@@ -141,7 +140,13 @@ namespace VSS.Wator.Original
             ShuffleArray(_directions);
             foreach(var direction in _directions) {
                 var point = GetPosition(direction, position);
-                if (IsCellOfType<T>(point))
+                var animal = Grid[point];
+                // ReSharper disable once UseNullPropagation
+                if (animal == null)
+                    continue;
+                if (animal.Moved)
+                    continue;
+                if (animal is T)
                     return point;
             }
             return -1;
@@ -151,20 +156,10 @@ namespace VSS.Wator.Original
             ShuffleArray(_directions);
             foreach (var direction in _directions) {
                 var point = GetPosition(direction, position);
-                if (IsCellFree(point))
+                if (Grid[point] == null)
                     return point;
             }
             return -1;
-        }
-
-        private bool IsCellFree(int position) {
-            return Grid[position] == null;
-        }
-
-        private bool IsCellOfType<T>(int position) {
-            if (Grid[position] == null) 
-                return false;
-            return Grid[position] is T;
         }
 
         private void ShuffleArray<T>(T[] arr) {
