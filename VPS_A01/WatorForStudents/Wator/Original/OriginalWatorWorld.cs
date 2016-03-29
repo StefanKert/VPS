@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using SharpNeatLib.Maths;
 
 namespace VSS.Wator.Original
 {
@@ -17,7 +18,7 @@ namespace VSS.Wator.Original
         }
 
         private readonly Direction[] _directions; 
-        private readonly Random _random;
+        private readonly FastRandom _random;
         private readonly int[] _randomMatrix;
         private readonly byte[] _rgbValues;
         private readonly int _maxPosition;
@@ -40,7 +41,7 @@ namespace VSS.Wator.Original
             _maxPosition = Width * Height;
             _directions = Enum.GetValues(typeof(Direction)).Cast<Direction>().ToArray();
             _rgbValues = new byte[_maxPosition * 4];
-            _random = new Random();
+            _random = new FastRandom();
             Grid = new Animal[_maxPosition];
             Iteration = 0;
 
@@ -65,16 +66,6 @@ namespace VSS.Wator.Original
             InitialSharkPopulation = settings.InitialSharkPopulation;
             InitialSharkEnergy = settings.InitialSharkEnergy;
             SharkBreedEnergy = settings.SharkBreedEnergy;
-        }
-
-        public void ExecuteStep() {
-            ShuffleArray(_randomMatrix);
-            Iteration++;
-            for (var i = 0; i < _maxPosition; i++) {
-                var animal = Grid[_randomMatrix[i]];
-                if (animal != null && !animal.Moved)
-                    animal.ExecuteStep();
-            }
         }
 
         public Bitmap GenerateImage() {
@@ -109,6 +100,16 @@ namespace VSS.Wator.Original
             return bitmap;
         }
 
+        public void ExecuteStep() {
+            ShuffleArray(_randomMatrix);
+            Iteration++;
+            for (var i = 0; i < _maxPosition; i++) {
+                var animal = Grid[_randomMatrix[i]];
+                if (animal != null && !animal.Moved)
+                    animal.ExecuteStep();
+            }
+        }
+
         private int GetPosition(Direction direction, int position) {
             int pos;
             switch (direction) {
@@ -131,6 +132,27 @@ namespace VSS.Wator.Original
                 default:
                     throw new ArgumentException("Directiontype not supported.", nameof(direction));
             }
+        }
+
+        public int SelectNeighborOfType(Type expectedType, int position, out int freeField)
+        {
+            ShuffleArray(_directions);
+            freeField = -1;
+            foreach (var direction in _directions)
+            {
+                var point = GetPosition(direction, position);
+                var animal = Grid[point];
+                if (animal == null)
+                {
+                    freeField = point;
+                    continue;
+                }
+                if (animal.Moved)
+                    continue;
+                if (animal.GetType() == expectedType)
+                    return point;
+            }
+            return -1;
         }
 
         public int SelectNeighborOfType<T>(int position, out int freeField) {

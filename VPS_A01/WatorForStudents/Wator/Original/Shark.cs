@@ -15,7 +15,7 @@ namespace VSS.Wator.Original {
             Age++;
             Energy--;
             int freeField;
-            var fish = World.SelectNeighborOfType<Fish>(Position, out freeField);
+            var fish = World.SelectNeighborOfType(typeof(Fish), Position, out freeField);
             if (fish != -1) {
                 Energy += World.Grid[fish].Energy;
                 Move(fish);
