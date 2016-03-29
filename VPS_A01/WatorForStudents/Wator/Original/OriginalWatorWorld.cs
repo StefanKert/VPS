@@ -33,6 +33,7 @@ namespace VSS.Wator.Original
         private int InitialSharkPopulation { get; set; }
         private int InitialSharkEnergy { get; set; }
         public int SharkBreedEnergy { get; private set; }
+        public int Iteration { get; set; }
 
         public OriginalWatorWorld(Settings settings) {
             CopySettings(settings);
@@ -41,6 +42,7 @@ namespace VSS.Wator.Original
             _rgbValues = new byte[_maxPosition * 4];
             _random = new Random();
             Grid = new Animal[_maxPosition];
+            Iteration = 0;
 
             for (var i = 0; i < _maxPosition; i++) {
                 var value = _random.Next(_maxPosition);
@@ -67,16 +69,11 @@ namespace VSS.Wator.Original
 
         public void ExecuteStep() {
             ShuffleArray(_randomMatrix);
-
+            Iteration++;
             for (var i = 0; i < _maxPosition; i++) {
                 var animal = Grid[_randomMatrix[i]];
                 if (animal != null && !animal.Moved)
                     animal.ExecuteStep();
-            }
-
-            for (var i = 0; i < _maxPosition; i++) {
-                var animal = Grid[_randomMatrix[i]];
-                animal?.Commit();
             }
         }
 
@@ -138,7 +135,7 @@ namespace VSS.Wator.Original
 
         public int SelectNeighborOfType<T>(int position) {
             ShuffleArray(_directions);
-            foreach(var direction in _directions) {
+            foreach (var direction in _directions) {
                 var point = GetPosition(direction, position);
                 var animal = Grid[point];
                 // ReSharper disable once UseNullPropagation
