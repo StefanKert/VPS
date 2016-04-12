@@ -1,0 +1,55 @@
+\documentclass[a4paper,ngerman]{scrartcl}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+
+\usepackage{paralist}
+\usepackage{listings} 
+\usepackage{datetime} 
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+\usepackage{color}
+ 
+\definecolor{bluekeywords}{rgb}{0,0,1}
+\definecolor{greencomments}{rgb}{0,0.5,0}
+\definecolor{redstrings}{rgb}{0.64,0.08,0.08}
+\definecolor{xmlcomments}{rgb}{0.5,0.5,0.5}
+\definecolor{types}{rgb}{0.17,0.57,0.68}
+ 
+\lstset{language=[Sharp]C,
+captionpos=b,
+showspaces=false,
+showtabs=false,
+breaklines=true,
+showstringspaces=false,
+breakatwhitespace=true,
+escapeinside={(*@}{@*)},
+commentstyle=\color{greencomments},
+morekeywords={partial, var, value, get, set},
+keywordstyle=\color{bluekeywords},
+stringstyle=\color{redstrings},
+basicstyle=\ttfamily\footnotesize,            
+tabsize=2
+}
+ 
+
+\begin{document}
+
+\title{VPS5 - UE2}
+\author{Stefan Kert}
+\date{\today}
+\maketitle
+
+\section{Race Conditions}
+\subsection{Was sind \textit{Race Conditions}?}
+Eine Race Condition tritt dann auf, wenn zwei Threads gleichzeitig versuchen, eine Operation auf einem Objekt durchzuführen, wodurch sich ein falsches Ergebnis ergibt.
+
+
+\subsection{Was kann getan werden um \textit{Race Conditions} zu vermeiden?}
+
+\end{document}
+
+\end{document}

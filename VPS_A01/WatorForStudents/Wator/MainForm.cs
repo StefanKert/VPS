@@ -19,12 +19,11 @@ namespace VSS.Wator {
 
       worker.WorkerSupportsCancellation = true;
       worker.WorkerReportsProgress = true;
-      worker.DoWork += new DoWorkEventHandler(worker_DoWork);
-      worker.ProgressChanged += new ProgressChangedEventHandler(worker_ProgressChanged);
-      worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(worker_RunWorkerCompleted);
+      worker.DoWork += worker_DoWork;
+      worker.ProgressChanged += worker_ProgressChanged;
+      worker.RunWorkerCompleted += worker_RunWorkerCompleted;
     }
 
-    #region BackgroundWorker Events
     private void worker_DoWork(object sender, DoWorkEventArgs e) {
       Type worldType = (Type)e.Argument;
       IWatorWorld world;
@@ -74,7 +73,6 @@ namespace VSS.Wator {
       stopButton.Enabled = false;
       pictureBox.Cursor = Cursors.Default;
     }
-    #endregion
 
     #region Button Events
     private void runButton_Click(object sender, EventArgs e) {

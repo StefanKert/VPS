@@ -1,0 +1,306 @@
+\documentclass[a4paper,ngerman]{scrartcl}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+
+\usepackage{paralist}
+\usepackage{listings} 
+\usepackage{datetime} 
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+\usepackage{color}
+ 
+\definecolor{bluekeywords}{rgb}{0,0,1}
+\definecolor{greencomments}{rgb}{0,0.5,0}
+\definecolor{redstrings}{rgb}{0.64,0.08,0.08}
+\definecolor{xmlcomments}{rgb}{0.5,0.5,0.5}
+\definecolor{types}{rgb}{0.17,0.57,0.68}
+ 
+\lstset{language=[Sharp]C,
+captionpos=b,
+showspaces=false,
+showtabs=false,
+breaklines=true,
+showstringspaces=false,
+breakatwhitespace=true,
+escapeinside={(*@}{@*)},
+commentstyle=\color{greencomments},
+morekeywords={partial, var, value, get, set},
+keywordstyle=\color{bluekeywords},
+stringstyle=\color{redstrings},
+basicstyle=\ttfamily\footnotesize,            
+tabsize=2
+}
+ 
+
+\begin{document}
+
+\title{VPS5 - UE1\\
+Wator}
+\author{Stefan Kert}
+\date{\today}
+\maketitle
+
+\section{Analyse}
+\subsection{Design und Lesbarkeit}
+Grundsätzlich lässt sich auf den ersten Blick erkennen, dass die Struktur des angegebenen Programmes sehr gut gestaltet ist. Durch die geringe Anzahl der Klassen ist die Einarbeitungszeit sehr kurz. Die meisten Klassen sind dabei für die Optimierung irrelevant. Lediglich die Klassen \textit{OriginalWatorWorld}, \textit{Animal}, \textit{Fish} und \textit{Shark} sind für eine Performanzoptimierung relevant. Dabei befindet sich der Großteil der Funktionalität in der Klasse \textit{OriginalWaterWorld}. Einige der in dieser Klasse enthaltenen Methoden sind sehr lange und teilweise auch sehr unübersichtlich gestaltet. Durch Extrahieren von Methoden und kleinen Refactorings würde die Lesbarkeit und Wartbarkeit dieser Methoden sehr stark verbessert werden. Ein weiteres Problem stellen die vielen Kommentare dar, die teilweise unnötige sind, oder durch ein Extrahieren in eigene Methoden und vergeben vernünftiger Namen entfernt werden könnten.
+
+\subsection{Performance}
+Auf den ersten Blick lassen sich bereits im Quellcode Stellen erkennen die für die Performanz sehr schlecht sind. Es werden viele Objekte und Daten kopiert wie z.B. die Struktur \textit{Point}, welche an verschiedenen Stellen neu erzeugt, kopiert und wieder gelöscht wird. Nach einer genaueren Analyse mit den Visual Studio Diagnosetools lässt sich erkennen, dass die meiste Zeit in der \textit{ExecuteStep} und in der \textit{SelectNeighbour} Methode bzw. in den von diesen Methoden aufgerufenen Methoden verloren geht, was in erster Linie damit zusammenhängt, dass diese Methoden sehr häufig aufgerufen werden. Ein weiterer Aspekt der einen negativen Einfluss auf die Performanz hat ist die Verwendung eines zweidimensionalen Arrays, welches immer wieder gemischt und zufällig generiert wird. Weiters sind die oben erwähnten Strukturen (\textit{Point}) sehr kritisch zu sehen, da diese immer wieder kopiert und freigegeben werden müssen.
+
+\section{Fragen}
+\subsection{Aktuelle Performanz}
+In dieser Tabelle lässt sich die aktuelle Performanz ablesen. Die Abweichungen zwischen den einzelnen Durchläufen sind sehr gering. Alle Tests wurden mit den folgenden Einstellungen durchgeführt:
+
+\begin{itemize}
+	\item FishBreedTime: 10
+	\item InitialFishEnergy: 10
+	\item InitialFishPopulation: 20000
+	\item DisplayInterval: 1
+	\item DisplayWorld: false
+	\item Height: 500
+	\item Iterations: 100
+	\item Runs: 5
+	\item Width: 500
+	\item Workers: 1
+	\item InitialSharkEnergy: 25
+	\item InitialSharPopulation: 5000
+	\item SharkBreedEnergy: 50
+\end{itemize}
+
+\centering
+\begin{tabular}{l|l}
+                               & Original  \\ \hline
+1. Durchlauf                   & 6293,59892 \\
+2. Durchlauf                   & 6141,90 \\
+3. Durchlauf                   & 6013,10 \\
+4. Durchlauf                   & 5992,79 \\
+5. Durchlauf                   & 6038,73 \\
+                               &           \\
+Durchschnitt                   & 6096,02 \\
+Standardabweichung             & 211,97  \\
+\end{tabular}
+
+\subsection{Wo wird die meiste Leistung verbraucht?}
+Durch die Visual Studio Diagnostic Tools ist es sehr einfach herauszufinden, wo die meiste Leistung verbraucht wird. Die Grafik \ref{fig:PerformanceOriginal} zeigt sehr gut wo die meiste Leistung verbraucht wird. Weiters zeigt sie, dass die meisten Instanzen (>90\%) vom Typ Point sind und dass diese den meisten Speicher benötigen. Die speicherintensivste Funktion ist die GetNeighbour Funktion, was darauf zurückzuführen ist, dass hier sehr viele Point-Arrays kopiert, gelöscht und verschoben werden, sowie sehr viele Instanzen vom Typ Point erstellt werden. 
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=0.9\textwidth]{C:/Users/Stefan/Documents/GitHub/VPS/VPS_A01/Images/PerformanceOriginal.PNG}
+	\caption{RAM Auslastung}
+	\label{fig:PerformanceOriginal}
+\end{figure}
+
+\subsection{Welche Teile sind die hinsichtlich Performanz kritischten Teile?}
+Auch bei der Analyse der benötigten Zeit für die einzelnen Funktionen liefern die Visual Studio Diagnostic Tools eine sehr gute Unterstützung. An Hand der Grafik \ref{fig:PerformanceTimeOriginal} lässt sich gut erkennen, dass vor allem die Funktionen zum zufälligen Generieren der Matrix, die Funktion \textit{ExecuteStep} und die Funktion \textit{GetNeighbours} sehr zeitintensiv sind. Dies liegt in erster Linie daran, dass diese Funktionen sehr häufig ausgeführt werden und darin sehr viele Schritte durchgeführt werden.
+
+\begin{figure}[h]
+	\centering
+		\includegraphics [width=0.9\textwidth]{C:/Users/Stefan/Documents/GitHub/VPS/VPS_A01/Images/PerformanceTimeOriginal.PNG}
+	\caption{Zeitverbrauch der Methoden}
+	\label{fig:PerformanceTimeOriginal}
+\end{figure}
+
+\subsection{Was kann getan werden um die Performanz zu verbessern?}
+Wie bereits oben beschrieben, kann die Funktion GetNeighbours überarbeitet werden. Es wird in dieser Funktion sehr viel kopiert und neu erzeugt, dies könnte man durch umschreiben der Logik (wird später in einem Verbesserungsschritt gezeigt) verbessern. Eine weitere Verbesserung der Performanz könnte durch eine andere Implementierung des \textit{Shuffle} Algorithmus für die Matrix erreicht werden. Da sich die Breite und Höhe der Matrix während der Simulation könnte immer das gleiche Array verwendet werden, welches dann zufällig sortiert werden kann. Dadurch würde es nicht mehr nötig sein immer ein neues Array zu erzeugen und dies würde neben einer besseren Performanz zu einem geringeren Speicherverbrauch führen. 
+
+
+\section{Verbesserungen}
+\label{sec:improvements}
+In diesem Abschnitt sollten die oben bereits kurz angeschnittenen Verbesserungen gezeigt werden.
+
+\subsection{Version 1}
+In der ersten Version wurden kleinere Refactorings durchgeführt die zu einer besseren Lesbarkeit des Quelltextes beitragen sollten. Weiters wurde die \textit{GetNeighbours} Funktion soweit verändert, dass per Zufall eine Richtung generiert wird, diese der Funktion übergeben wird und danach der gewünschte Punkt zurückgegeben wird.
+
+	\begin{lstlisting}
+        private int GetPosition(Direction direction, int position) {
+            int pos;
+            switch (direction) {
+                case Direction.Up:
+                    pos = position - Width;
+                    if (pos < 0) pos += _maxPosition;
+                    return pos;
+                case Direction.Down:
+                    pos = position + Width;
+                    if (pos >= _maxPosition) pos -= _maxPosition;
+                    return pos;
+                case Direction.Left:
+                    pos = position - 1;
+                    if ((pos + 1) % Width == 0) pos += Width;
+                    return pos;
+                case Direction.Right:
+                    pos = position + 1;
+                    if (pos % Width == 0) pos -= Width;
+                    return pos;
+                default:
+                    throw new ArgumentException("Directiontype not supported.", nameof(direction));
+            }
+        }
+				
+        public int SelectFreeNeighbor(int position) {
+            ShuffleArray(_directions);
+            foreach (var direction in _directions) {
+                var point = GetPosition(direction, position);
+                if (Grid[point] == null)
+                    return point;
+            }
+            return -1;
+        }
+	\end{lstlisting}
+
+ Dadurch, dass die Position vorher ermittelt wird, müssen nicht immer alle Positionen generiert werden sondenr es wird vorher schon bestimmt welche Richtung das ausgewählt wird. Insofern die zurückgegebene Richtung nicht der gewünschten entspricht, wird eine weitere Richtung geprüft.
+Weiters gelingt eine Performanzverbesserung durch Ersetzen der \textit{Shuffle}-Methode durch den Fisher-Yates-Sortieralgorithmus wird ebenfalls eine deutliche Performanzverbesserung erreicht:
+
+	\begin{lstlisting}
+        private void ShuffleArray<T>(T[] arr) {
+            for (var i = arr.Length - 1; i > 0; i--) {
+                var index = _random.Next(i);
+                if (index == i)
+                    continue;
+                var tmp = arr[index];
+                arr[index] = arr[i];
+                arr[i] = tmp;
+            }
+        }
+	\end{lstlisting}
+	
+
+\subsection{Version 2}
+Durch ein Ändern der Reihenfolge der Checks auf den Typ des Nachbarfeldes kann bereits vorzeitig entschieden werden, ob der Wert gültig ist oder nicht. Die Reihenfolge dieser Checks bringt einen Performanzvorteil. 
+
+	\begin{lstlisting}
+				public int SelectNeighborOfType(Type expectedType, int position)
+        {
+            ShuffleArray(_directions);
+            foreach (var direction in _directions)
+            {
+                var point = GetPosition(direction, position);
+                var animal = Grid[point];
+                if (animal == null)
+                {
+                    continue;
+                }
+                if (animal.Moved)
+                    continue;
+                if (animal.GetType() == expectedType)
+                    return point;
+            }
+            return -1;
+        }
+	\end{lstlisting}
+
+
+Weiters wurde die Berechnung der Gesamtfelder in den Konstruktor ausgelagert, da diese nicht bei jedem Aufruf erfolgen muss. In einem weiteren Schritt wurde das Setzen des Moved Flag insofern umgebaut, dass der Wert der aktuellen Iteration gespeichert wird und immer dieser Verglichen wird, dadurch ist das Aufrufen der \textit{Commit()} Methode am ende jedes Durchlaufs nicht mehr nötig. 
+
+	\begin{lstlisting}
+        public void ExecuteStep() {
+            ShuffleArray(_randomMatrix);
+            Iteration++;
+            for (var i = 0; i < _maxPosition; i++) {
+                var animal = Grid[_randomMatrix[i]];
+                if (animal != null && !animal.Moved)
+                    animal.ExecuteStep();
+            }
+        }
+	\end{lstlisting}
+
+\subsection{Version 3}
+Bei der Version 3 wurde das mehrdimensionale Array durch ein eindimensionales Array mit \textit{int} Werten statt \textit{Point} Werten ersetzt. Dies spart erstens Speicher und die Generierung des Arrays wird dadurch sehr stark vereinfacht, da keine doppelt verschachtelten Schleifen mehr für das Initialisieren bzw. Ändern des Arrays nötig sind.
+
+	\begin{lstlisting}
+        public OptimizedWatorWorld(Settings settings) {
+            CopySettings(settings);
+            _maxPosition = Width * Height;
+            _directions = Enum.GetValues(typeof(Direction)).Cast<Direction>().ToArray();
+            _rgbValues = new byte[_maxPosition * 4];
+            _random = new FastRandom();
+            Grid = new Animal[_maxPosition];
+            Iteration = 0;
+
+            for (var i = 0; i < _maxPosition; i++) {
+                var value = _random.Next(_maxPosition);
+                if (value < InitialFishPopulation) 
+                    Grid[i] = new Fish(this, i, _random.Next(0, FishBreedTime));
+                else if (value < InitialFishPopulation + InitialSharkPopulation) 
+                    Grid[i] = new Shark(this, i, _random.Next(0, SharkBreedEnergy));
+                else 
+                    Grid[i] = null;
+            }
+            _randomMatrix = Enumerable.Range(0, _maxPosition).ToArray();
+        }
+				\end{lstlisting}
+Für Version 3 wurde weiters der Standard .NET Randomizer durch eine schnellere Implementierung eines Randomizers ersetzt (http://www.codeproject.com/Articles/9187/A-fast-equivalent-for-System-Random). Weiters wurde in der Klasse \textit{Fish} und in der Klasse \textit{Shark} der Check auf das Moved Flag entfernt, bei dem eine Exception geworfen wurde, da dieser Fall nicht auftreten kann und im Grunde genommen eher durch einen Unittest abgedeckt werdne sollte. Weiters wird in der Funktion \textit{SelectNeighbourOfType} ein freies Feld über ein Outputargument zurückgegeben falls kein Feld mit dem gewünschten Typ exisitiert, wodurch der zweite Aufruf der SelectNeighbours Funktion eingespart wird.
+
+	\begin{lstlisting}
+				public int SelectNeighborOfType(Type expectedType, int position, out int freeField)
+        {
+            ShuffleArray(_directions);
+            freeField = -1;
+            foreach (var direction in _directions)
+            {
+                var point = GetPosition(direction, position);
+                var animal = Grid[point];
+                if (animal == null)
+                {
+                    freeField = point;
+                    continue;
+                }
+                if (animal.Moved)
+                    continue;
+                if (animal.GetType() == expectedType)
+                    return point;
+            }
+            return -1;
+        }
+	\end{lstlisting}
+
+In den Klassen \textit{Shark} und \textit{Fish} wurden Änderungen vorgenommen, sodass der Aufruf der Methoden \textit{Spawn} nicht erfolgt, insofern im vorhinein schon sichergestellt ist, dass diese Methode zu keinem Ergebnis führen würde, da keine Felder frei sind und somit kein neuer Fisch oder Hai erzeugt werden kann.
+
+\begin{lstlisting}
+        public override void ExecuteStep() {
+            Age++;
+            Energy--;
+            int freeField;
+            var fish = World.SelectNeighborOfType(typeof(Fish), Position, out freeField);
+            if (fish != -1) {
+                Energy += World.Grid[fish].Energy;
+                Move(fish);
+            }
+            else if (freeField != -1)
+                Move(freeField);
+
+            if (fish != -1 || freeField != -1) {
+                if (Energy >= World.SharkBreedEnergy)
+                    Spawn();
+            }
+            if (Energy <= 0)
+                World.Grid[Position] = null;
+        }
+\end{lstlisting}
+
+\section{Ergebnisse}
+Durch die beschriebenen Verbesserungen konnte für die gesamte Simulation ein gesamter Speedup von ca. \textbf{2,8} erreicht werden. Details können der folgenden Tabelle entnommen werden.
+\\
+
+\centering
+\begin{tabular}{l|llll}
+                               & Original  & Version 1 & Version 2 & Version 3 \\ \hline
+1. Durchlauf                   & 6293,60 & 2846,71 & 2536,74 & 2143,34 \\
+2. Durchlauf                   & 6141,90 & 2836,63 & 2587,69 & 2183,72 \\
+3. Durchlauf                   & 6013,10 & 2640,58 & 2571,44 & 2142,96 \\
+4. Durchlauf                   & 5992,79 & 2663,15 & 2548,94 & 2142,13 \\
+5. Durchlauf                   & 6038,73 & 2636,04 & 2558,21& 2156,96\\
+                               &           &           &           &           \\
+Durchschnitt                   & 6096,02 & 2724,62 & 2560,60 & 2153,82 \\
+Standardabweichung             & 211,97   & 98,19  & 29,99  & 39,14   \\
+                               &           &           &           &           \\
+Speedup zur vorherigen Version &           & 2,24	    & 1,06	   & 1,19    \\
+Speedup zum Original           &           & \textbf{2,24}    & \textbf{2,38}    & \textbf{2,83}   
+\end{tabular}
+
+\end{document}
+
+\end{document}
