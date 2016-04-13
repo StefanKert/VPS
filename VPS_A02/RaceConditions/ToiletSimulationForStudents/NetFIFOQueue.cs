@@ -33,10 +33,7 @@ namespace VSS.ToiletSimulation
             }
         }
 
-        public bool IsCompleted
-        {
-            get { return queue.IsCompleted; }
-        }
+        public bool IsCompleted => queue.IsCompleted;
 
         public void Dispose()
         {

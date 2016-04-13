@@ -3,49 +3,22 @@ namespace VSS.ToiletSimulation
     public static class Parameters
     {
         // number of producers
-        public static int Producers
-        {
-            get { return 2; }
-        }
+        public static int Producers => 2;
         // number of generated jobs per producer
-        public static int JobsPerProducer
-        {
-            get { return 200; }
-        }
+        public static int JobsPerProducer => 200;
         // number of consumers
-        public static int Consumers
-        {
-            get { return 2; }
-        }
+        public static int Consumers => 2;
         // if true, output of job processing is displayed
-        public static bool DisplayJobProcessing
-        {
-            get { return true; }
-        }
+        public static bool DisplayJobProcessing => true;
         // mean time between arrival of new persons (milliseconds)
-        public static double MeanArrivalTime
-        {
-            get { return 100; }
-        }
+        public static double MeanArrivalTime => 100;
         // mean of the time span in which a person has to be processed (milliseconds)
-        public static int MeanDueTime
-        {
-            get { return 500; }
-        }
+        public static int MeanDueTime => 500;
         // standard deviation of the time span in which a person has to be processed (milliseconds)
-        public static int StdDeviationDueTime
-        {
-            get { return 150; }
-        }
+        public static int StdDeviationDueTime => 150;
         // mean of the time required to process one person (milliseconds)
-        public static int MeanProcessingTime
-        {
-            get { return 100; }
-        }
+        public static int MeanProcessingTime => 100;
         // standard deviation of the time required to process one person (milliseconds)
-        public static int StdDeviationProcessingTime
-        {
-            get { return 25; }
-        }
+        public static int StdDeviationProcessingTime => 25;
     }
 }

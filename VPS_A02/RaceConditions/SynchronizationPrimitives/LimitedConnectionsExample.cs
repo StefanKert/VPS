@@ -9,13 +9,13 @@ namespace SynchronizationPrimitives
 {
     public class LimitedConnectionsExample
     {
-        private const int ConcurrentDownloads = 10;
+        private const int MAX_CONCURRENT_DOWNLOADS = 10;
         private SemaphoreSlim _syncSemaphore;
         private List<Thread> _threads;
 
         public void DownloadFilesAsync(IEnumerable<string> urls)
         {
-            _syncSemaphore = new SemaphoreSlim(ConcurrentDownloads);
+            _syncSemaphore = new SemaphoreSlim(MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS);
             _threads = new List<Thread>();
             foreach (var url in urls)
             {
@@ -25,8 +25,7 @@ namespace SynchronizationPrimitives
             }
         }
 
-        public void DownloadFile(object url)
-        {
+        public void DownloadFile(object url) {
             _syncSemaphore.Wait();
             Console.WriteLine($"Downloading {url}");
             Thread.Sleep(1000);
@@ -36,7 +35,13 @@ namespace SynchronizationPrimitives
 
         public void DownloadFiles(IEnumerable<string> urls)
         {
-            DownloadFilesAsync(urls);
+            _threads = new List<Thread>();
+            foreach (var url in urls)
+            {
+                Thread t = new Thread(DownloadFile);
+                _threads.Add(t);
+                t.Start(url);
+            }
             foreach (var thread in _threads)
             {
                 thread.Join();

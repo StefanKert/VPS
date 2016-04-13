@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace RaceConditionExample
 {
-    class RaceConditionExample
+    public class RaceConditionExample
     {
         private static readonly object LockObject = new object();
         static int result = 0;

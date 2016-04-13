@@ -17,6 +17,14 @@ namespace SynchronizationPrimitives
                 "Test",
                 "Test",
                 "Test",
+                "Test",
+                "Test",
+                "Test",
+                "Test",
+                "Test",
+                "Test",
+                "Test",
+                "Test",
                 "Test"
             });
 

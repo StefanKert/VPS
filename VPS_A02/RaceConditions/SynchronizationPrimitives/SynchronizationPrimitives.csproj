@@ -44,6 +44,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="LimitedConnectionsExample.cs" />
+    <Compile Include="PollingExample.cs" />
+    <Compile Include="BetterPollingExample.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

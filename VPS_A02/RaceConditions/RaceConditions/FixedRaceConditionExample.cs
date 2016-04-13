@@ -15,15 +15,9 @@ namespace RaceConditions
         private AutoResetEvent writerSignal;
         private AutoResetEvent readerSignal;
 
-        private SemaphoreSlim writerSemaphore;
-        private SemaphoreSlim readerSemaphore;
-
-
         public void Run()
         {
             buffer = new double[BUFFER_SIZE];
-            readerSemaphore = new SemaphoreSlim(0);
-            writerSemaphore = new SemaphoreSlim(BUFFER_SIZE);
             writerSignal = new AutoResetEvent(false);
             readerSignal = new AutoResetEvent(true);
             // start threads
@@ -41,9 +35,9 @@ namespace RaceConditions
             for (int i = 0; i < N; i++)
             {
                 readerSignal.Set();
+                writerSignal.WaitOne();
                 Console.WriteLine(buffer[readerIndex]);
                 readerIndex = (readerIndex + 1) % BUFFER_SIZE;
-                writerSignal.Reset();
             }
         }
         void Writer()
@@ -51,12 +45,10 @@ namespace RaceConditions
             var writerIndex = 0;
             for (int i = 0; i < N; i++)
             {
-                writerSignal.Set();
-                //writerSemaphore.Wait();
+                readerSignal.WaitOne();
                 buffer[writerIndex] = (double)i;
                 writerIndex = (writerIndex + 1) % BUFFER_SIZE;
-                //readerSemaphore.Release();
-                readerSignal.Reset();
+                writerSignal.Set();
             }
         }
     }

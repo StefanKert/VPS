@@ -45,11 +45,301 @@ tabsize=2
 
 \section{Race Conditions}
 \subsection{Was sind \textit{Race Conditions}?}
-Eine Race Condition tritt dann auf, wenn zwei Threads gleichzeitig versuchen, eine Operation auf einem Objekt durchzuführen, wodurch sich ein falsches Ergebnis ergibt.
+In Programmen kann es zu sogenannten Race conditions kommen, wenn Ergebnisse einer Operation
+von der zeitlichen Abfolge parallel ablaufender Threads abhängig sind und es zu einem unverhersebaren
+Ergebnis kommen kann. Ein Beispiel für eine solche Race Condition befindet sich in folgendem Listing:
+
+\begin{lstlisting}
+  public class RaceConditionExample
+    {
+        private static readonly object LockObject = new object();
+        static int result = 0;
+
+        public static void IncreaseResult()
+        {
+            result++;
+        }
+
+        public static void Run(int numberOfIncrements, int threadCount)
+        {
+            var tasks = new Task[threadCount];
+            var raceConditionCount = 0;
+            result = 0;
+            for (int i = 0; i < numberOfIncrements; i++)
+            {
+                for (int j = 0; j < threadCount; j++)
+                {
+                    tasks[j] = new Task(() => IncreaseResult());
+                    tasks[j].Start();
+                }
+
+                Task.WaitAll(tasks);
+
+                if (result != i * threadCount)
+                    raceConditionCount++;
+            }
+
+            ......
+        }
+    }
+\end{lstlisting}
+
+In der Methode \textit{IncreaseResult()} wird die statische Variable \textit{result} erhöht. Diese 
+Methode werden schließlich mehrere Threads erzeugt, welche diese Methode gleichzeitig aufrufen. Hier
+kann es zu Race Conditions kommen, wodurch die Variable \textit{result} falsch erhöht werden kann. Bei dem
+gegebenen Beispiel kommt es bei 5 Threads und 10000 Schleifendurchläufen zu folgendem Ergebnis:
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=0.9\textwidth]{images/RaceConditionsExample.PNG}
+	\caption{Ergebnis Race Conditions}
+	\label{fig:RaceConditionsExample}
+\end{figure}
 
 
 \subsection{Was kann getan werden um \textit{Race Conditions} zu vermeiden?}
 
-\end{document}
+Eine Möglichkeit Race Conditions zu vermeiden sind Locks. Im folgenden Beispiel wurden diese dazu verwendet
+um die Operation zu synchronisieren. Im folgenden Listing befindet sich eine Variante, durch welche die
+Race Conditions nicht mehr auftreten.
+
+\begin{lstlisting}
+    public class RaceConditionExample
+    {
+        private static readonly object LockObject = new object();
+        static int result = 0;
+
+        public static void IncreaseResultWithLock()
+        {
+            lock (LockObject)
+            {
+                result++;
+            }
+        }
+
+        public static void Run(int numberOfIncrements, int threadCount, Action method)
+        {
+            var tasks = new Task[threadCount];
+            var raceConditionCount = 0;
+            result = 0;
+            for (int i = 0; i < numberOfIncrements; i++)
+            {
+                for (int j = 0; j < threadCount; j++)
+                {
+                    tasks[j] = new Task(method);
+                    tasks[j].Start();
+                }
+
+                Task.WaitAll(tasks);
+
+                if (result != i * threadCount)
+                    raceConditionCount++;
+            }
+						
+						......
+        }
+    }
+\end{lstlisting}
+
+Durch das Verwenden von \textit{lock} in der Methode \textit{IncreaseResultWithLock} wird das inkrementieren
+synchronisiert wodurch das erwartete Ergebnis erreicht wird:
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=0.9\textwidth]{images/FixedRaceConditionsExample.PNG}
+	\caption{Ergebnis der behobenen Race Conditions}
+	\label{fig:FixedRaceConditionsExample}
+\end{figure}
+
+\subsection{Wo befindet sich die Race Condition im folgenden Code und wie kann diese behoben werden?}
+
+Im folgenden Listing ist eine Klasse dargestellt die eine Race Condition enthält. Diese Race Condition zeigt sich
+in dem Ausmaß, dass der Writer Elemente überschreibt, welche sich im Buffer befinden, die vom Reader noch nicht 
+glesen wurden.
+
+\begin{lstlisting}
+		class RaceConditionExample
+    {
+        private const int N = 1000;
+        private const int BUFFER_SIZE = 10;
+        private double[] buffer;
+        private AutoResetEvent signal;
+
+        public void Run()
+        {
+            buffer = new double[BUFFER_SIZE];
+            signal = new AutoResetEvent(false);
+            // start threads
+            var t1 = new Thread(Reader);
+            var t2 = new Thread(Writer);
+            t1.Start();
+            t2.Start();
+            // wait
+            t1.Join();
+            t2.Join();
+        }
+        void Reader()
+        {
+            var readerIndex = 0;
+            for (int i = 0; i < N; i++)
+            {
+                signal.WaitOne();
+                Console.WriteLine(buffer[readerIndex]);
+                readerIndex = (readerIndex + 1) % BUFFER_SIZE;
+            }
+        }
+        void Writer()
+        {
+            var writerIndex = 0;
+            for (int i = 0; i < N; i++)
+            {
+                buffer[writerIndex] = (double)i;
+                signal.Set();
+                writerIndex = (writerIndex + 1) % BUFFER_SIZE;
+            }
+        }
+    }
+\end{lstlisting}
+
+Gelöst werden kann diese Race Condition durch das Verwenden von \textit{AutoResetEvents}.
+Im Writer wird auf das readerSignal gewartet, welches im Reader gesetzt wird. Danach wird 
+das Element zum Buffer hinzugefügt und das Signal, auf welches im Reader gewartet wird, 
+wieder freigegeben. Dies führt dazu, dass der reader das Element ausliest und wieder zum
+Anfang springt und die Synchronisierung von vorne beginnt.
+
+\begin{lstlisting}
+    class FixedRaceConditionExample
+    {
+        private const int N = 1000;
+        private const int BUFFER_SIZE = 10;
+        private double[] buffer;
+        private AutoResetEvent writerSignal;
+        private AutoResetEvent readerSignal;
+
+        public void Run()
+        {
+            buffer = new double[BUFFER_SIZE];
+            writerSignal = new AutoResetEvent(false);
+            readerSignal = new AutoResetEvent(true);
+            // start threads
+            var t1 = new Thread(Reader);
+            var t2 = new Thread(Writer);
+            t1.Start();
+            t2.Start();
+            // wait
+            t1.Join();
+            t2.Join();
+        }
+        void Reader()
+        {
+            var readerIndex = 0;
+            for (int i = 0; i < N; i++)
+            {
+                readerSignal.Set();
+                writerSignal.WaitOne();
+                Console.WriteLine(buffer[readerIndex]);
+                readerIndex = (readerIndex + 1) % BUFFER_SIZE;
+            }
+        }
+        void Writer()
+        {
+            var writerIndex = 0;
+            for (int i = 0; i < N; i++)
+            {
+                readerSignal.WaitOne();
+                buffer[writerIndex] = (double)i;
+                writerIndex = (writerIndex + 1) % BUFFER_SIZE;
+                writerSignal.Set();
+            }
+        }
+    }
+\end{lstlisting}
+
+
+\section{Synchronization Primitives}
+\subsection{Wie kann die Anzahl an erzeugten Threads begrenzt werden?}
+Mit der Klasse \textit{SemaphoreSlim} kann die Anzahl an verwendeten Threads begrenzt werden. Folgendes Listing
+demonstriert, wie mit Hilfe dieser Klasse die Anzahl der Threads begrenzt werden kann. Dazu wird der Konstruktor
+mit dem gewünschten Limit (in dem Beispiel 10) instanziiert und in der in einem Thread ausgeführten Methode wird 
+ein Signal aufgerufen, welches anzeigt, dass ein neuer Thread gestartet wird. Für jeden Aufruf von \textit{syncSemaphore.Wait}
+wird in der Klasse \textit{SemaphoreSlim} intern ein Counter erhöht und bei jedem Aufruf von \textit{syncSemaphore.Release}
+wird dieser wieder verringert. Mit dieser Funktionalität kann die Anzahl an Aurufen einer Methode reguliert werden und somit
+auch die Anzahl an Threads die verwendet werden.
+
+\begin{lstlisting}
+        public void DownloadFilesAsync(IEnumerable<string> urls)
+        {
+            _syncSemaphore = new SemaphoreSlim(10, 10);
+            _threads = new List<Thread>();
+            foreach (var url in urls)
+            {
+                Thread t = new Thread(DownloadFile);
+                _threads.Add(t);
+                t.Start(url);
+            }
+        }
+
+        public void DownloadFile(object url) {
+            _syncSemaphore.Wait();
+            Console.WriteLine($"Downloading {url}");
+            Thread.Sleep(1000);
+            Console.WriteLine($"finished {url}");
+            _syncSemaphore.Release();
+        }
+\end{lstlisting} 
+
+\subsection{Synchrone Implementierung der Methode DownloadFilesAsync}
+
+Im folgenden Listing wird die Methode \textit{DownloadFiles} gezeigt, welche 
+wartet bis alle Threads beendet sind. Dies geschieht mittels der Methode \textit{Join}.
+
+\begin{lstlisting}
+        public void DownloadFiles(IEnumerable<string> urls)
+        {
+            _threads = new List<Thread>();
+            foreach (var url in urls)
+            {
+                Thread t = new Thread(DownloadFile);
+                _threads.Add(t);
+                t.Start(url);
+            }
+            foreach (var thread in _threads)
+            {
+                thread.Join();
+            }
+        }
+				
+				public void DownloadFile(object url) {
+            _syncSemaphore.Wait();
+            Console.WriteLine($"Downloading {url}");
+            Thread.Sleep(1000);
+            Console.WriteLine($"finished {url}");
+            _syncSemaphore.Release();
+        }
+\end{lstlisting} 
+
+\subsection{Optimieren des Codes, der mittels Polling auf das fertigstellen der Threads wartet}
+
+Der folgende Codebaschnitt enthält eine Schleife, in der überprüft wird, ob alle Threads beendet wurden.
+Dass der Prozessor nicht zu stark belastet wird, wird in der Schleife immer ein paar Millisekunden gewartet
+und danach erneut überprüft.
+
+\begin{lstlisting}
+      while (resultsFinished < MAX_RESULTS) {
+                Thread.Sleep(10);
+            }
+\end{lstlisting} 
+
+Die in den neueren Version des .NET Frameworks vorhandene TPL bietet eine einfache Möglichkeit, wie ein solches Polling
+verhindert werden kann:
+
+\begin{lstlisting}
+		Task.WaitAll(tasks);
+\end{lstlisting}
+
+Mit der Methode \textit{WaitAll} wird gewartet bis alle \textit{Tasks} die übergeben wurden beendet sind. Wodurch nicht
+mehr gepollt werden muss.
+
+\section{Toilet Simulation}
 
 \end{document}
