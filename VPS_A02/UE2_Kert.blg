@@ -1,5 +1,0 @@
-[0] Config.pm:324> INFO - This is Biber 2.1
-[0] Config.pm:327> INFO - Logfile is 'UE2_Kert.blg'
-[58] biber-MSWIN:273> INFO - === %a %b %e, %Y, %H:%M:%S
-[301] Utils.pm:162> ERROR - Cannot find control file 'UE2_Kert.bcf'! - did you pass the "backend=biber" option to BibLaTeX?
-[302] Biber.pm:110> INFO - ERRORS: 1

@@ -341,5 +341,205 @@ Mit der Methode \textit{WaitAll} wird gewartet bis alle \textit{Tasks} die über
 mehr gepollt werden muss.
 
 \section{Toilet Simulation}
+\subsection{Implementieren eines einfachen Consumers Toilet}
+
+In der Übung wurde bereits der rudimentäre Consumer Toilet implementiert. Der Consumer ist fertig sobald alle Elemente abgearbeitet sind.
+Zu diesem Zweck wurde das Flag \textit{IsCompleted} zum Interface \textit{IQueue} hinzugefügt. Über die Methode \textit{TryDequeue} kann 
+ein Wert ausgelesen werden. Falls kein Wert enthalte ist blockiert diese Methode.
+
+\subsection{FifoQueue Implementierung}
+Bei der Implementierung der FifoQueue wird mit Hilfe einer Semaphore die Synchronisierung realisiert. Wenn ein Element hinzugefügt wird,
+wird die Semaphore erhöht, sobald ein Element wieder ausgelesen wird wird sie wieder verringert. Weiters wurden alle Zugriffe auf die
+Queue mittels einem lock synchronisiert.
+
+\begin{lstlisting}
+		using System;
+using System.Linq;
+using System.Threading;
+
+namespace VSS.ToiletSimulation
+{
+    public abstract class Queue : IQueue
+    {
+        private int countOfCompletedProducers;
+        protected IList<IJob> _queue;
+
+        public int Count
+        {
+            get
+            {
+                lock (_queue)
+                {
+                    return _queue.Count;
+                }
+            }
+        }
+
+        protected Queue()
+        {
+            _queue = new List<IJob>();
+        }
+
+        public abstract void Enqueue(IJob job);
+
+
+        public abstract bool TryDequeue(out IJob job);
+
+
+        public virtual void CompleteAdding()
+        {
+            lock (_queue)
+            {
+                countOfCompletedProducers++;
+                if (countOfCompletedProducers == Parameters.Producers)
+                    IsCompleted = true;
+            }
+        }
+
+        public bool IsCompleted
+        {
+            get; private set;
+        }
+    }
+
+    public class FIFOQueue : Queue
+    {
+        private readonly SemaphoreSlim _syncSem;
+
+        public FIFOQueue()
+        {
+            _syncSem = new SemaphoreSlim(0);
+        }
+
+        public override void Enqueue(IJob job)
+        {
+            if (IsCompleted)
+                throw new InvalidOperationException("The queue already is completed.");
+
+            lock (_queue)
+            {
+                _queue.Add(job);
+            }
+            _syncSem.Release();
+        }
+
+        public override bool TryDequeue(out IJob job)
+        {
+
+            job = null;
+            if (IsCompleted)
+                return false;
+
+            _syncSem.Wait();
+
+            lock (_queue)
+            {
+                if (Count == 0)
+                    return false;
+
+                job = DequeueNextJob();
+                return true;
+            }
+        }
+
+        protected virtual IJob DequeueNextJob()
+        {
+            lock (_queue)
+            {
+                var job = _queue.First();
+                _queue.Remove(job);
+                return job;
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+Die FIFOQueue wurde mit folgenden Parametern aufgerufen:
+
+\begin{itemize}
+	\item Producers: 2
+	\item JobsPerProducer: 200
+	\item Consumers: 2
+	\item MeanArrivalTime: 100
+	\item MeanDueTime: 500
+	\item StdDeviationDueTime: 150
+	\item MeanProcessingTime: 100
+	\item StdDeviationProcessingTime: 25
+\end{itemize}
+
+Damit ergibt sich folgendes Ergebnis:
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=0.9\textwidth]{images/FifoResult.PNG}
+	\caption{Ergebnis für FifoQueue}
+	\label{fig:FifoQueueResult}
+\end{figure}
+
+\subsection{ToiletQueue Implementierung}
+Bei der FifoQueue ist das größte Problem, dass die Elemente in einer ungünstigen Reihenfolge ausgelesen werden. Durch eine Sortierung
+und eine priorisierung der einzelnen Jobs kann ein besseres Ergebnis erzielt werden. Die Queue wird dazu nach dem \textit{DueDate}
+sortiert um diejenigen Jobs zu erhalten, welche als nächtes fällig werden. Im Falle, dass ein Job nicht rechtzeitig abgearbeitet werden 
+kann, sollte diese weniger hoch priorisiert werden, da die Zeit für diese bereits abgelaufen ist. Mittels der Linq Methode \textit{FirstOrDefault}
+kann das erste Element in der sortierten Queue ausgelesen werden, welches nach der aktuellen Zeit fällig ist. Wenn die Queue leer ist, werden die
+restlichen, bereits abgelaufenen Jobs abgearbeitet.
+
+Implementiert wurde diese Logik in der überschriebenen Methode \textit{DequeueNextJob} welche bereits in der FifoQueue zum Auslesen des nächsten
+Jobs verwendet wurde.
+
+\begin{lstlisting}
+using System;
+using System.Linq;
+using System.Threading;
+
+namespace VSS.ToiletSimulation
+{
+
+    public class ToiletQueue : FIFOQueue
+    {
+        protected override IJob DequeueNextJob()
+        {
+            lock (_queue)
+            {
+                IJob result = _queue.OrderBy(x => x.DueDate).FirstOrDefault(x => x.DueDate > DateTime.Now) ?? _queue.First();
+                _queue.Remove(result);
+                return result;
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+Durch diese Änderung stellt sich eine starke Performanceverbesserung, sowie eine starke Verbesserung des Verhältnisses von erfolgreichen
+und fehlgeschlagenen Jobs dar. Die Testläufe wurden mit folgenden Parametern durchgeführt:
+
+\begin{itemize}
+	\item Producers: 2
+	\item JobsPerProducer: 200
+	\item Consumers: 2
+	\item MeanArrivalTime: 100
+	\item MeanDueTime: 500
+	\item StdDeviationDueTime: 150
+	\item MeanProcessingTime: 100
+	\item StdDeviationProcessingTime: 25
+\end{itemize}
+
+Die folgende Tabelle listet die Ergebnisse der einzelnen Durchläufe auf und zeigt wie stark sich die Performanz und das Verhältnis verbessert hat.
+
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=0.9\textwidth]{images/ToiletQueueResult.PNG}
+	\caption{Ergebnis für ToiletQueue}
+	\label{fig:ToiletQueueResult}
+\end{figure}
+
+\subsection{Vergleich FIFOQueue und ToiletQueue}
+
+Ein Vergleich zeigt, dass die Zahl der durchschnittlich fehlgeschlagenen Jobs von 191 auf 36 reduziert wurde, was einer mehr als 5 fachen Verbesserung entspricht. Die 
+durchschnittlich benötigte Gesamtzeit wurde um mehr als eine Minute verringert. Die Personen können durch die verbesserte Ordnung der Elemente schneller verarbeitet werden,
+was in der verbesserten Laufzeit resultiert. Im Großen und Ganzen lässt sich sagen, dass durch eine richtige Sortierung von Elementen eine starke Verbesserung der Performanz 
+erreicht werden kann.
 
 \end{document}
