@@ -33,7 +33,7 @@ namespace VSS.ToiletSimulation
                 }
                 else
                 {
-                    Console.WriteLine("Should not happen..tjo.");
+                    Console.WriteLine("This should not happen.");
                 }
             }
         }

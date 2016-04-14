@@ -9,7 +9,7 @@ namespace VSS.ToiletSimulation
         // number of consumers
         public static int Consumers => 2;
         // if true, output of job processing is displayed
-        public static bool DisplayJobProcessing => true;
+        public static bool DisplayJobProcessing => false;
         // mean time between arrival of new persons (milliseconds)
         public static double MeanArrivalTime => 100;
         // mean of the time span in which a person has to be processed (milliseconds)

@@ -1,20 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace VSS.ToiletSimulation
 {
     public abstract class Queue : IQueue
     {
-        protected IList<IJob> queue;
+        private int countOfCompletedProducers;
+        protected IList<IJob> _queue;
 
         public int Count
         {
-            get { throw new NotImplementedException(); }
+            get
+            {
+                lock (_queue)
+                {
+                    return _queue.Count;
+                }
+            }
         }
 
         protected Queue()
         {
-            queue = new List<IJob>();
+            _queue = new List<IJob>();
         }
 
         public abstract void Enqueue(IJob job);
@@ -25,15 +33,17 @@ namespace VSS.ToiletSimulation
 
         public virtual void CompleteAdding()
         {
-            throw new NotImplementedException();
+            lock (_queue)
+            {
+                countOfCompletedProducers++;
+                if (countOfCompletedProducers == Parameters.Producers)
+                    IsCompleted = true;
+            }
         }
 
         public bool IsCompleted
         {
-            get
-            {
-                throw new NotImplementedException();
-            }
+            get; private set;
         }
     }
 }

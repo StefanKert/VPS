@@ -1,25 +1,58 @@
 using System;
+using System.Linq;
+using System.Threading;
 
 namespace VSS.ToiletSimulation
 {
 
     public class FIFOQueue : Queue
     {
-        public FIFOQueue() { }
+        private readonly SemaphoreSlim _syncSem;
+
+        public FIFOQueue()
+        {
+            _syncSem = new SemaphoreSlim(0);
+        }
 
         public override void Enqueue(IJob job)
         {
-            throw new NotImplementedException();
+            if (IsCompleted)
+                throw new InvalidOperationException("The queue already is completed.");
+
+            lock (_queue)
+            {
+                _queue.Add(job);
+            }
+            _syncSem.Release();
         }
 
         public override bool TryDequeue(out IJob job)
         {
-            throw new NotImplementedException();
+
+            job = null;
+            if (IsCompleted)
+                return false;
+
+            _syncSem.Wait();
+
+            lock (_queue)
+            {
+                if (Count == 0)
+                    return false;
+
+                job = DequeueNextJob();
+                return true;
+            }
         }
 
-        public override void CompleteAdding()
+        protected virtual IJob DequeueNextJob()
         {
-            throw new NotImplementedException();
+            lock (_queue)
+            {
+                var job = _queue.First();
+                _queue.Remove(job);
+                return job;
+            }
         }
     }
 }

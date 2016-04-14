@@ -7,7 +7,7 @@ namespace VSS.ToiletSimulation
         public static void Main()
         {
             int randomSeed = new Random().Next();
-            var q = new NetFIFOQueue();
+            var q = new ToiletQueue();
             TestQueue(q, randomSeed);
         }
 
@@ -38,6 +38,7 @@ namespace VSS.ToiletSimulation
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine();
+            Console.ReadLine();
         }
 
     }
