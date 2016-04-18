@@ -28,20 +28,32 @@ namespace MandelbrotGenerator {
       currentArea.Width = pictureBox.Width;
       currentArea.Height = pictureBox.Height;
 
-      generator = new SyncImageGenerator();
+      generator = new AsyncImageGenerator();
+      generator.ImageGenerated += GeneratorOnImageGenerated;
+    }
+
+    private void GeneratorOnImageGenerated(object sender, EventArgs<Tuple<Area, Bitmap, TimeSpan>> args) {
+      if (InvokeRequired) {
+        Invoke(new EventHandler<EventArgs<Tuple<Area, Bitmap, TimeSpan>>>(GeneratorOnImageGenerated), sender, args);
+      }
+      else {
+        currentArea = args.Value.Item1;
+        pictureBox.Image = args.Value.Item2;
+        toolStripStatusLabel.Text = "Done (Runtime: " + args.Value.Item3 + ")";
+      }
     }
 
     private void UpdateImage(Area area) {
       toolStripStatusLabel.Text = "Calculating ...";
 
-      Stopwatch stopwatch = new Stopwatch();
-      stopwatch.Start();
-      Bitmap bitmap = generator.GenerateImage(area);
-      stopwatch.Stop();
+      //Stopwatch stopwatch = new Stopwatch();
+      //stopwatch.Start();
+      generator.GenerateImage(area);
+      //stopwatch.Stop();
 
-      currentArea = area;
-      pictureBox.Image = bitmap;
-      toolStripStatusLabel.Text = "Done (Runtime: " + stopwatch.Elapsed.ToString() + ")";
+      //currentArea = area;
+      //pictureBox.Image = bitmap;
+      //toolStripStatusLabel.Text = "Done (Runtime: " + stopwatch.Elapsed.ToString() + ")";
     }
 
     #region Menu events
