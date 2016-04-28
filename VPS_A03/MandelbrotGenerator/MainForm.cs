@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
+using MandelbrotGenerator.Generators;
 
 namespace MandelbrotGenerator
 {
@@ -10,7 +11,7 @@ namespace MandelbrotGenerator
     {
         private Area _currentArea;
         private Point _mouseDownPoint;
-        private readonly IImageGenerator _generator;
+        private readonly AbstractImageGenerator _generator;
 
         public MainForm()
         {
@@ -33,7 +34,7 @@ namespace MandelbrotGenerator
                 Height = pictureBox.Height
             };
 
-            _generator = new AsyncImageGenerator();
+            _generator = new AsyncImageGeneratorWithBackgroundWorker();
             _generator.ImageGenerated += GeneratorOnImageGenerated;
         }
 
@@ -55,15 +56,7 @@ namespace MandelbrotGenerator
         private void UpdateImage(Area area)
         {
             toolStripStatusLabel.Text = "Calculating ...";
-
-            //Stopwatch stopwatch = new Stopwatch();
-            //stopwatch.Start();
             _generator.GenerateImage(area);
-            //stopwatch.Stop();
-
-            //currentArea = area;
-            //pictureBox.Image = bitmap;
-            //toolStripStatusLabel.Text = "Done (Runtime: " + stopwatch.Elapsed.ToString() + ")";
         }
 
         #region Menu events

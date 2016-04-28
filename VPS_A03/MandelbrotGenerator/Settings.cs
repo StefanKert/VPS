@@ -76,13 +76,13 @@ namespace MandelbrotGenerator
 
         public Settings()
         {
-            MinReal = -2;
-            MinImg = -1;
-            MaxReal = 1;
-            MaxImg = 1;
+            MinReal = -1.4;
+            MinImg = -0.1;
+            MaxReal = -1.32;
+            MaxImg = -0.02;
             _maxIterations = 10000;
             _zBorder = 4.0;
-            _workers = 1;
+            _workers = 15;
         }
     }
 }

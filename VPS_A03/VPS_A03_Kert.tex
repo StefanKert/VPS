@@ -38,308 +38,276 @@ tabsize=2
 
 \begin{document}
 
-\title{VPS5 - UE2}
+\title{VPS5 - UE3}
 \author{Stefan Kert}
 \date{\today}
 \maketitle
 
-\section{Race Conditions}
-\subsection{Was sind \textit{Race Conditions}?}
-In Programmen kann es zu sogenannten Race conditions kommen, wenn Ergebnisse einer Operation
-von der zeitlichen Abfolge parallel ablaufender Threads abhängig sind und es zu einem unverhersebaren
-Ergebnis kommen kann. Ein Beispiel für eine solche Race Condition befindet sich in folgendem Listing:
+\section{Dish of the Day: Almondbreads}
+\subsection{a. Sync - Generator}
+Der Synchrone Generator wurde bereits in der Übungsstunde implementiert und nur leicht abgeändert, sodass die weiteren Komponenten die für diese Übung entwickelt wurden den Code dieses Generators verwenden können. Dabei enthält der SyncImageGenerator relativ wenig Code, da dort nur die Logik für die Stopwatch bzw. das Aufrufen des Events und der \textit{GenerateBitmap} Methode getätigt wird.
 
 \begin{lstlisting}
-  public class RaceConditionExample
+    public class SyncImageGenerator : AbstractImageGenerator
     {
-        private static readonly object LockObject = new object();
-        static int result = 0;
+        public override void GenerateImage(Area area) {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            var bm = GenerateBitmap(area, Source.Token);
+            stopwatch.Stop();
+            OnImageGenerated(area, bm, stopwatch.Elapsed);
+        }
+    }
+\end{lstlisting}
 
-        public static void IncreaseResult()
-        {
-            result++;
+Im \textit{AbstractImageGenerator}, der als Basisklasse für sämtliche Generatoren dient, ist die Logik für das generieren der einzelnen Zeilen und Spalten des Bitmaps, sowie etwaige Events und Hilfsmethoden. 
+
+\begin{lstlisting}
+     public abstract class AbstractImageGenerator 
+    {
+        protected CancellationTokenSource Source;
+
+        protected AbstractImageGenerator(): this(new CancellationTokenSource()) {}
+        private AbstractImageGenerator(CancellationTokenSource source) {
+            Source = source;
         }
 
-        public static void Run(int numberOfIncrements, int threadCount)
+        protected virtual Bitmap GenerateBitmap(Area area, CancellationToken cancelToken)
         {
-            var tasks = new Task[threadCount];
-            var raceConditionCount = 0;
-            result = 0;
-            for (int i = 0; i < numberOfIncrements; i++)
-            {
-                for (int j = 0; j < threadCount; j++)
-                {
-                    tasks[j] = new Task(() => IncreaseResult());
-                    tasks[j].Start();
+            Bitmap bitmap = new Bitmap(area.Width, area.Height);
+            for (int column = 0; column < area.Width; column++) {
+                for (int row = 0; row < area.Height; row++) {
+                    if (cancelToken.IsCancellationRequested)
+                        return null;
+                    bitmap.SetPixel(column, row, ImageGeneratorLogic.GetColorForData(area, column, row, cancelToken));
                 }
-
-                Task.WaitAll(tasks);
-
-                if (result != i * threadCount)
-                    raceConditionCount++;
             }
+            return bitmap;
+        }
 
-            ......
+
+
+        public abstract void GenerateImage(Area area);
+
+        public event EventHandler<EventArgs<Tuple<Area, Bitmap, TimeSpan>>> ImageGenerated;
+
+        protected void OnImageGenerated(Area area, Bitmap bitmap, TimeSpan timeSpan) {
+            if (area != null && bitmap != null)
+                ImageGenerated?.Invoke(this, new EventArgs<Tuple<Area, Bitmap, TimeSpan>>(new Tuple<Area, Bitmap, TimeSpan>(area, bitmap, timeSpan)));
         }
     }
 \end{lstlisting}
 
-In der Methode \textit{IncreaseResult()} wird die statische Variable \textit{result} erhöht. Diese 
-Methode werden schließlich mehrere Threads erzeugt, welche diese Methode gleichzeitig aufrufen. Hier
-kann es zu Race Conditions kommen, wodurch die Variable \textit{result} falsch erhöht werden kann. Bei dem
-gegebenen Beispiel kommt es bei 5 Threads und 10000 Schleifendurchläufen zu folgendem Ergebnis:
+Um eine bessere Auftrennung der einzelnen Aspekte zu gewährleisten, wurde die Methode für die Generierung der Farbe der einzelnen Felder in eine eigene Klasse \textit{ImageGeneratorLogic} ausgelagert. Dies dient in erster Linie dem Code Reuse, sowie der Testbarkeit, da durch ein herauslösen dieser Methode eine leichtere Testbarkeit gewährleistet ist.
 
-\begin{figure}[h]
-	\centering
-		\includegraphics[width=0.9\textwidth]{images/RaceConditionsExample.PNG}
-	\caption{Ergebnis Race Conditions}
-	\label{fig:RaceConditionsExample}
-\end{figure}
-
-
-\subsection{Was kann getan werden um \textit{Race Conditions} zu vermeiden?}
-
-Eine Möglichkeit Race Conditions zu vermeiden sind Locks. Im folgenden Beispiel wurden diese dazu verwendet
-um die Operation zu synchronisieren. Im folgenden Listing befindet sich eine Variante, durch welche die
-Race Conditions nicht mehr auftreten.
 
 \begin{lstlisting}
-    public class RaceConditionExample
+       public static class ImageGeneratorLogic
     {
-        private static readonly object LockObject = new object();
-        static int result = 0;
+        private static int MaxIterations => Settings.DefaultSettings.MaxIterations;
+        private static double Border => Settings.DefaultSettings.ZBorder * Settings.DefaultSettings.ZBorder;
 
-        public static void IncreaseResultWithLock()
+        public static Color GetColorForData(Area area, int column, int row, CancellationToken cancelToken)
         {
-            lock (LockObject)
+            var cReal = area.MinReal + column * area.PixelWidth;
+            var cImg = area.MinImg + row * area.PixelHeight;
+            var zReal = 0.0;
+            var zImg = 0.0;
+
+            var k = 0;
+            while ((zReal * zReal + zImg * zImg < Border) && (k < MaxIterations))
             {
-                result++;
+                if (cancelToken.IsCancellationRequested)
+                    return Color.Empty;
+                var zNewReal = zReal * zReal - zImg * zImg + cReal;
+                var zNewImg = 2 * zReal * zImg + cImg;
+
+                zReal = zNewReal;
+                zImg = zNewImg;
+
+                k++;
             }
-        }
-
-        public static void Run(int numberOfIncrements, int threadCount, Action method)
-        {
-            var tasks = new Task[threadCount];
-            var raceConditionCount = 0;
-            result = 0;
-            for (int i = 0; i < numberOfIncrements; i++)
-            {
-                for (int j = 0; j < threadCount; j++)
-                {
-                    tasks[j] = new Task(method);
-                    tasks[j].Start();
-                }
-
-                Task.WaitAll(tasks);
-
-                if (result != i * threadCount)
-                    raceConditionCount++;
-            }
-						
-						......
+            return ColorSchema.GetColor(k);
         }
     }
 \end{lstlisting}
 
-Durch das Verwenden von \textit{lock} in der Methode \textit{IncreaseResultWithLock} wird das inkrementieren
-synchronisiert wodurch das erwartete Ergebnis erreicht wird:
+\subsection{b. Async- Generator}
+Um Userinteraktionen auch während einer Berechnung zu ermöglichen ist es nötig, die Berechnung des Bildes asynchron auszuführen. Dazu wurden bereits für den Synchronen Generator Vorkehrungen getroffen. 
+Diese Vorkehrungen waren in erster Linie das Hinzufügen eines Events, welches signalisieren sollte, dass die Berechnung abgeschlossen wurde. Diese Event wird über die Methode \textit{OnImageGenerated} aufgerufen. Das Auslösen dieses Events ruft eine Methode im der \textit{MainForm} auf, welche schließlich das Bild lädt und die Informationen über die benötigte Zeit setzt. Hier ist nur wichtig, dass darauf geachtet wird, dass die Aktionen in der GUI im GUI Thread getätigt werden. Hierzu ist eine Synchronisierung notwendig. 
 
-\begin{figure}[h]
-	\centering
-		\includegraphics[width=0.9\textwidth]{images/FixedRaceConditionsExample.PNG}
-	\caption{Ergebnis der behobenen Race Conditions}
-	\label{fig:FixedRaceConditionsExample}
-\end{figure}
+In den beiden Implementierungen sollte darauf geachtet werden, dass falls eine erneute Berechnung gestartet wird, eine möglicherweise laufende Berechnung beendet wird. Dies erfolgt jeweils mittels Speichern der jeweiligen Thread, bzw. Backgroundworker Instanz in einer Membervariable und durch die Überprüfung dieser. Nähere Informationen hierzu in den einzelnen Unterpunkten dieser Implementierungen. Da die Asynchrone Variante mit \textit{CancellationTokens} arbeitet, muss hier darauf geachtet werden, dass dieser bei einem Abbrechen gecanceld wird und gewartet wird bis dieses Canceln abgeschlossen wurde.  Danach kann die jeweilige Instanz neu erstellt werden und eine neue Berechnung gestartet werden.
 
-\subsection{Wo befindet sich die Race Condition im folgenden Code und wie kann diese behoben werden?}
 
-Im folgenden Listing ist eine Klasse dargestellt die eine Race Condition enthält. Diese Race Condition zeigt sich
-in dem Ausmaß, dass der Writer Elemente überschreibt, welche sich im Buffer befinden, die vom Reader noch nicht 
-glesen wurden.
+\subsubsection{AsyncGenerator mit Threads}
+Die erste Implementierung wurde mit einfachen Threads realisiert. Dazu wird ein Thread mit der Methode gestartet, welche die Berechnung vornimmt. Heir wird überprüft ob die Membervariable ungleich null ist und ob das Flag \textit{IsAlive} true ist. Wenn dies der Fall ist wird über den \textit{Cancellationtoken} die Operation abgebrochen und mit\textit{ WaitOne()} gewartet bis dieses Abbrechen abgeschlossen ist. Danach wird eine neue Instanz des \textit{CancellationTokenSource} erstellt und die neue Berechnung gestartet. Wenn die Berechnung abgeschlossen wird, wird die Methode \textit{OnImageGenerated} aufgerufen, welche wie oben beschrieben signalisiert, dass die Operation beendet worden ist.
 
 \begin{lstlisting}
-		class RaceConditionExample
+    public class AsyncImageGenerator : AbstractImageGenerator
     {
-        private const int N = 1000;
-        private const int BUFFER_SIZE = 10;
-        private double[] buffer;
-        private AutoResetEvent signal;
+        private Thread _calculationThread;
 
-        public void Run()
-        {
-            buffer = new double[BUFFER_SIZE];
-            signal = new AutoResetEvent(false);
-            // start threads
-            var t1 = new Thread(Reader);
-            var t2 = new Thread(Writer);
-            t1.Start();
-            t2.Start();
-            // wait
-            t1.Join();
-            t2.Join();
-        }
-        void Reader()
-        {
-            var readerIndex = 0;
-            for (int i = 0; i < N; i++)
-            {
-                signal.WaitOne();
-                Console.WriteLine(buffer[readerIndex]);
-                readerIndex = (readerIndex + 1) % BUFFER_SIZE;
+        public override void GenerateImage(Area area) {
+            if (_calculationThread != null && _calculationThread.IsAlive) {
+                Source.Cancel();
+                Source.Token.WaitHandle.WaitOne();
+                Source = new CancellationTokenSource();
             }
+            _calculationThread = new Thread(() => BuildBitmap(area));
+            _calculationThread.Start();
         }
-        void Writer()
-        {
-            var writerIndex = 0;
-            for (int i = 0; i < N; i++)
-            {
-                buffer[writerIndex] = (double)i;
-                signal.Set();
-                writerIndex = (writerIndex + 1) % BUFFER_SIZE;
-            }
+
+        protected virtual void BuildBitmap(Area area) {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            var bm = GenerateBitmap(area, Source.Token);
+            stopwatch.Stop();
+            OnImageGenerated(area, bm, stopwatch.Elapsed);
         }
     }
 \end{lstlisting}
 
-Gelöst werden kann diese Race Condition durch das Verwenden von \textit{AutoResetEvents}.
-Im Writer wird auf das readerSignal gewartet, welches im Reader gesetzt wird. Danach wird 
-das Element zum Buffer hinzugefügt und das Signal, auf welches im Reader gewartet wird, 
-wieder freigegeben. Dies führt dazu, dass der reader das Element ausliest und wieder zum
-Anfang springt und die Synchronisierung von vorne beginnt.
+\subsubsection{AsyncGenerator mit Backgroundworker}
+Die Implementierung mittels \textit{Backgroundworker} funktioniert sehr ähnlich. Auch hier wird mittels einer Membervariable auf null überprüft, und ob der \textit{Backgroundworker} gerade läuft. Wenn ja wird wiederum über den \textit{CancellationToken} ein \textit{Cancel()} aufgerufen und die Operation somit beendet. Auch hier wird gewartet und nach Abschluss wird der \textit{BackgroundWorker} gecancelt. Es wäre hier auch möglich gewesen, die CancelationEvents über den \textit{BackgroundWorker} zu implementieren, jedoch würde dies zu einer Codeduplizierung führen, da die Logik für die Cancellation erneut implementiert werden müsste. Beim \textit{Backgroundworker} werden die Events \textit{DoWork} und \textit{RunWorkerCompleted} gebunden. Über \textit{DoWork} wird die Methode zum Generieren des Bitmaps gestartet. Nach Abschluss dieser wird der Result Member der \textit{DoWorkEventArgs} gesetzt welcher schließlich in der \textit{RunWorkerCompleted} Methode verwendet wird. In dieser Methode wird die \textit{OnImageGenerated} Methode aufgerufen womit die Berechnung beendet ist.
 
 \begin{lstlisting}
-    class FixedRaceConditionExample
+    public class AsyncImageGeneratorWithBackgroundWorker : AbstractImageGenerator
     {
-        private const int N = 1000;
-        private const int BUFFER_SIZE = 10;
-        private double[] buffer;
-        private AutoResetEvent writerSignal;
-        private AutoResetEvent readerSignal;
+        private BackgroundWorker _bw;
 
-        public void Run()
-        {
-            buffer = new double[BUFFER_SIZE];
-            writerSignal = new AutoResetEvent(false);
-            readerSignal = new AutoResetEvent(true);
-            // start threads
-            var t1 = new Thread(Reader);
-            var t2 = new Thread(Writer);
-            t1.Start();
-            t2.Start();
-            // wait
-            t1.Join();
-            t2.Join();
-        }
-        void Reader()
-        {
-            var readerIndex = 0;
-            for (int i = 0; i < N; i++)
-            {
-                readerSignal.Set();
-                writerSignal.WaitOne();
-                Console.WriteLine(buffer[readerIndex]);
-                readerIndex = (readerIndex + 1) % BUFFER_SIZE;
+        public override void GenerateImage(Area area) {
+            if (_bw != null && _bw.IsBusy) {
+                Source.Cancel();
+                Source.Token.WaitHandle.WaitOne();
+                Source = new CancellationTokenSource();
+                _bw.CancelAsync();
             }
+
+            _bw = new BackgroundWorker {WorkerSupportsCancellation = true};
+            _bw.DoWork += (sender, args) => BuildBitmap(area, args);
+            _bw.RunWorkerCompleted += OnBuildBitmapCompleted;
+            _bw.RunWorkerAsync();
         }
-        void Writer()
+
+        private void BuildBitmap(Area area, DoWorkEventArgs args)
         {
-            var writerIndex = 0;
-            for (int i = 0; i < N; i++)
-            {
-                readerSignal.WaitOne();
-                buffer[writerIndex] = (double)i;
-                writerIndex = (writerIndex + 1) % BUFFER_SIZE;
-                writerSignal.Set();
-            }
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            var bm = GenerateBitmap(area, Source.Token);
+            stopwatch.Stop();
+            args.Result = new Tuple<Area, Bitmap, TimeSpan>(area, bm, stopwatch.Elapsed);
+        }
+
+        private void OnBuildBitmapCompleted(object sender, RunWorkerCompletedEventArgs e) {
+            var bw = sender as BackgroundWorker;
+            if (bw != null)
+                bw.RunWorkerCompleted -= OnBuildBitmapCompleted;
+            var res = e.Result as Tuple<Area, Bitmap, TimeSpan>;
+            OnImageGenerated(res?.Item1, res?.Item2, res?.Item3 ?? new TimeSpan());
         }
     }
 \end{lstlisting}
 
-
-\section{Synchronization Primitives}
-\subsection{Wie kann die Anzahl an erzeugten Threads begrenzt werden?}
-Mit der Klasse \textit{SemaphoreSlim} kann die Anzahl an verwendeten Threads begrenzt werden. Folgendes Listing
-demonstriert, wie mit Hilfe dieser Klasse die Anzahl der Threads begrenzt werden kann. Dazu wird der Konstruktor
-mit dem gewünschten Limit (in dem Beispiel 10) instanziiert und in der in einem Thread ausgeführten Methode wird 
-ein Signal aufgerufen, welches anzeigt, dass ein neuer Thread gestartet wird. Für jeden Aufruf von \textit{syncSemaphore.Wait}
-wird in der Klasse \textit{SemaphoreSlim} intern ein Counter erhöht und bei jedem Aufruf von \textit{syncSemaphore.Release}
-wird dieser wieder verringert. Mit dieser Funktionalität kann die Anzahl an Aurufen einer Methode reguliert werden und somit
-auch die Anzahl an Threads die verwendet werden.
+\subsection{c. Parallel - Generator}
+Durch ein Aufteilen der Berechnung in mehrere Threads und ein paralleles ausführen dieser Berechnungen kann ein Speed Up erreicht werden. Dazu werden mehrere Threads erzeugt und jedem dieser Threads wird eine Methode zur Berechnung einer Zeile zugeordnet. Die Nummer der Zeile werden über eine Membervariable ausgelesen, welche auch über einen \textit{lock} synchronisiert wird. Diese Zeilennummer gibt aufschluss darüber, welche Reihe gerade berechnet wird. Nach der Berechnung der aktuellen Farbe wird das bitmap gelockt und die Pixel mit der jeweiligen Farbe gesetzt. Nach dem Initialisieren der Threads wird mittels Schleife auf das Enden der einzelnen Threads gewartet und schließlich, insofern die Operation nicht vorher abgebrochen wurde, die \textit{OnImageCreated} Methode aufgerufen.
 
 \begin{lstlisting}
-        public void DownloadFilesAsync(IEnumerable<string> urls)
+    public class ParallelImageGenerator : AsyncImageGenerator
+    {
+        private readonly object _bitmapLock = new object();
+        private readonly object _currentRowLock = new object();
+        private int _currentRow;
+        private Bitmap _bitmap;
+
+        protected  override void BuildBitmap(Area area)
         {
-            _syncSemaphore = new SemaphoreSlim(10, 10);
-            _threads = new List<Thread>();
-            foreach (var url in urls)
-            {
-                Thread t = new Thread(DownloadFile);
-                _threads.Add(t);
-                t.Start(url);
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            _currentRow = 0;
+            _bitmap = new Bitmap(area.Width, area.Height);
+            var threads = new Thread[Settings.DefaultSettings.Workers];
+
+            for (int i = 0; i < threads.Length; i++) {
+                Thread t = new Thread(() => BuildBitmap(area, Source.Token));
+                threads[i] = t;
+                t.Start();
             }
-        }
 
-        public void DownloadFile(object url) {
-            _syncSemaphore.Wait();
-            Console.WriteLine($"Downloading {url}");
-            Thread.Sleep(1000);
-            Console.WriteLine($"finished {url}");
-            _syncSemaphore.Release();
-        }
-\end{lstlisting} 
-
-\subsection{Synchrone Implementierung der Methode DownloadFilesAsync}
-
-Im folgenden Listing wird die Methode \textit{DownloadFiles} gezeigt, welche 
-wartet bis alle Threads beendet sind. Dies geschieht mittels der Methode \textit{Join}.
-
-\begin{lstlisting}
-        public void DownloadFiles(IEnumerable<string> urls)
-        {
-            _threads = new List<Thread>();
-            foreach (var url in urls)
-            {
-                Thread t = new Thread(DownloadFile);
-                _threads.Add(t);
-                t.Start(url);
-            }
-            foreach (var thread in _threads)
-            {
+            foreach (var thread in threads) {
                 thread.Join();
             }
+            stopwatch.Stop();
+            if (Source.Token.IsCancellationRequested)
+                _bitmap = null;
+            OnImageGenerated(area, _bitmap, stopwatch.Elapsed);
         }
-				
-				public void DownloadFile(object url) {
-            _syncSemaphore.Wait();
-            Console.WriteLine($"Downloading {url}");
-            Thread.Sleep(1000);
-            Console.WriteLine($"finished {url}");
-            _syncSemaphore.Release();
-        }
-\end{lstlisting} 
 
-\subsection{Optimieren des Codes, der mittels Polling auf das fertigstellen der Threads wartet}
 
-Der folgende Codebaschnitt enthält eine Schleife, in der überprüft wird, ob alle Threads beendet wurden.
-Dass der Prozessor nicht zu stark belastet wird, wird in der Schleife immer ein paar Millisekunden gewartet
-und danach erneut überprüft.
+        private void BuildBitmap(Area area, CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var row = GetCurrentRow();
+                if (row >= area.Height)
+                    return;
 
-\begin{lstlisting}
-      while (resultsFinished < MAX_RESULTS) {
-                Thread.Sleep(10);
+                for (int column = 0; column < area.Width; column++) {
+                    var color = ImageGeneratorLogic.GetColorForData(area, column, row, cancellationToken);
+                    lock (_bitmapLock) {
+                        _bitmap.SetPixel(column, row, color);
+                    }
+                }
             }
-\end{lstlisting} 
+        }
 
-Die in den neueren Version des .NET Frameworks vorhandene TPL bietet eine einfache Möglichkeit, wie ein solches Polling
-verhindert werden kann:
-
-\begin{lstlisting}
-		Task.WaitAll(tasks);
+        private int GetCurrentRow() {
+            int row;
+            lock (_currentRowLock) {
+                row = _currentRow;
+                _currentRow++;
+            }
+            return row;
+        }
+    }
 \end{lstlisting}
 
-Mit der Methode \textit{WaitAll} wird gewartet bis alle \textit{Tasks} die übergeben wurden beendet sind. Wodurch nicht
-mehr gepollt werden muss.
+\subsection{d. Performancevergleich}
+Wie in den Anforderungen definiert wurde der Vergleich mit folgenden Parametern durchgeführt:
 
-\section{Toilet Simulation}
+\begin{itemize}
+	\item MaxIterations: 10000
+	\item ZBorder: 4
+	\item MaxImg: -0,02
+	\item MaxReal: -1,32
+	\item MinImg: -0,1
+	\item MinReal: -1,4
+	\item Workers: 10
+\end{itemize}
+
+\begin{table}[!htb]
+\centering
+\caption{Performancevergleich: Ergebnisse}
+\begin{tabular}{cccc}
+\hline
+                                                                           
+Run & Synchron [ms] & Parallel [ms] & \\
+1 & 4955 & 1561 & \\
+2 & 4958 & 1432 & \\
+3 & 5010 & 1512 & \\
+4 & 5077 & 1498 & \\
+5 & 4993 & 1532 & \\
+6 & 4981 & 1554 & \\
+7 & 4941 & 1388 & \\
+8 & 4959 & 1451 & \\
+9 & 4939 & 1523 & \\
+10 & 5026 & 1486 & \\ 
+Mittelwert    & 4983 & 1493 & \\
+Std. Abw.    & 41,5      & 52,6  &\\
+Speed Up & & & 3,34
+
+\end{tabular}
+\end{table} 
+
+Dieser Vergleich zeigt, dass durch ein Parallelisieren der einzelnen Berechnungen ein enormer Speed Up erreicht werden kann.
 
 \end{document}

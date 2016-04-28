@@ -59,12 +59,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Generators\AbstractImageGenerator.cs" />
     <Compile Include="Area.cs" />
-    <Compile Include="AsyncImageGenerator.cs" />
+    <Compile Include="Generators\AsyncImageGenerator.cs" />
     <Compile Include="ColorSchema.cs" />
     <Compile Include="EventArgs.cs" />
-    <Compile Include="SyncImageGenerator.cs" />
-    <Compile Include="IImageGenerator.cs" />
+    <Compile Include="Generators\AsyncImageGeneratorWithBackgroundWorker.cs" />
+    <Compile Include="Generators\ImageGeneratorLogic.cs" />
+    <Compile Include="Generators\ParallelImageGenerator.cs" />
+    <Compile Include="Generators\SyncImageGenerator.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -80,6 +83,11 @@
     <Compile Include="SettingsDialog.Designer.cs">
       <DependentUpon>SettingsDialog.cs</DependentUpon>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
