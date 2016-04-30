@@ -1,17 +1,19 @@
 ﻿using System;
 
-namespace Quandl.API {
-  public class StockValue {
-    public DateTime Date;
+namespace Quandl.API
+{
+    public class StockValue
+    {
+        public DateTime Date;
 
-    public double Open;
+        public double Open;
 
-    public double High;
+        public double High;
 
-    public double Low;
+        public double Low;
 
-    public double Close;
+        public double Close;
 
-    public double Volume;
-  }
+        public double Volume;
+    }
 }

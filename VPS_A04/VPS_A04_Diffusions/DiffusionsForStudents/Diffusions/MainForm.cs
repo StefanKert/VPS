@@ -21,8 +21,8 @@ namespace Diffusions
             graphics.FillRectangle(Brushes.Azure, 0, 0, pictureBox.Width, pictureBox.Height);
             graphics.Dispose();
 
-            // generator = new SyncImageGenerator();
-            // generator = new ParallelImageGenerator();
+            //generator = new SyncImageGenerator();
+            generator = new ParallelImageGenerator();
             generator.ImageGenerated += generator_ImageGenerated;
         }
 

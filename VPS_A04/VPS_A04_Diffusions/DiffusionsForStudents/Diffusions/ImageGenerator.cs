@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.Threading.Tasks;
 
 namespace Diffusions
 {
@@ -7,19 +9,25 @@ namespace Diffusions
     {
         protected bool stopRequested = false;
 
-        public bool StopRequested
-        {
-            get { return stopRequested; }
-        }
+        public bool StopRequested => stopRequested;
 
         protected bool finished = false;
+   
+        public bool Finished => finished;
 
-        public bool Finished
-        {
-            get { return finished; }
+        public void GenerateImage(Area area) {
+            Task.Run(() => {
+                for (var i = 0; i < Settings.DefaultSettings.MaxIterations; i++) {
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    var bm = GenerateBitmap(area);
+                    sw.Stop();
+                    OnImageGenerated(area, bm, sw.Elapsed);
+                }
+            });
         }
 
-        public abstract void GenerateImage(Area area); //TODO
+        public abstract Bitmap GenerateBitmap(Area area);
 
         public virtual void ColorBitmap(double[,] array, int width, int height, Bitmap bm) {
             int maxColorIndex = ColorSchema.Colors.Count - 1;
@@ -35,9 +43,7 @@ namespace Diffusions
         public event EventHandler<EventArgs<Tuple<Area, Bitmap, TimeSpan>>> ImageGenerated;
 
         protected void OnImageGenerated(Area area, Bitmap bitmap, TimeSpan timespan) {
-            var handler = ImageGenerated;
-            if (handler != null)
-                handler(this, new EventArgs<Tuple<Area, Bitmap, TimeSpan>>(new Tuple<Area, Bitmap, TimeSpan>(area, bitmap, timespan)));
+            ImageGenerated?.Invoke(this, new EventArgs<Tuple<Area, Bitmap, TimeSpan>>(new Tuple<Area, Bitmap, TimeSpan>(area, bitmap, timespan)));
         }
 
         public virtual void Stop() {
