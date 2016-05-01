@@ -56,7 +56,7 @@ namespace Diffusions
         #endregion
 
         public Settings() {
-            maxIterations = 10000;
+            maxIterations = 100;
             workers = 1;
             displayInterval = 10;
         }

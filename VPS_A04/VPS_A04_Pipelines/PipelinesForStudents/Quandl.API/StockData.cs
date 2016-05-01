@@ -54,18 +54,17 @@ namespace Quandl.API
         public List<StockValue> GetValues() {
             List<StockValue> values = new List<StockValue>();
             for (int i = 0; i < data.Length; i++) {
-                StockValue val = new StockValue();
-                val.Date = DateTime.Parse(data[i][0], CultureInfo.InvariantCulture);
-                val.Open = data[i][1] != null ? double.Parse(data[i][1], CultureInfo.InvariantCulture) : -1;
-                val.High = data[i][2] != null ? double.Parse(data[i][2], CultureInfo.InvariantCulture) : -1;
-                val.Low = data[i][3] != null ? double.Parse(data[i][3], CultureInfo.InvariantCulture) : -1;
-                val.Close = data[i][4] != null ? double.Parse(data[i][4], CultureInfo.InvariantCulture) : -1;
-                val.Volume = data[i][5] != null ? double.Parse(data[i][5], CultureInfo.InvariantCulture) : -1;
-
+                var val = new StockValue {
+                    Date = DateTime.Parse(data[i][0], CultureInfo.InvariantCulture),
+                    Open = data[i][1] != null ? double.Parse(data[i][1], CultureInfo.InvariantCulture) : -1,
+                    High = data[i][2] != null ? double.Parse(data[i][2], CultureInfo.InvariantCulture) : -1,
+                    Low = data[i][3] != null ? double.Parse(data[i][3], CultureInfo.InvariantCulture) : -1,
+                    Close = data[i][4] != null ? double.Parse(data[i][4], CultureInfo.InvariantCulture) : -1,
+                    Volume = data[i][5] != null ? double.Parse(data[i][5], CultureInfo.InvariantCulture) : -1
+                };
                 values.Add(val);
             }
             values.Sort((x, y) => x.Date < y.Date ? -1 : 1);
-
             return values;
         }
     }

@@ -11,8 +11,6 @@ namespace Diffusions
 
         void Stop();
 
-        bool Finished { get; }
-
         bool StopRequested { get; }
     }
 }

@@ -16,7 +16,7 @@ namespace Diffusions
             var width = area.Width;
             var newMatrix = new double[width, height];
 
-            Parallel.For(0, width, (i) => {
+            Parallel.For(0, width, i => {
                 for (var j = 0; j < height; j++) {
                     var jp = (j + height - 1)%height;
                     var jm = (j + 1)%height;

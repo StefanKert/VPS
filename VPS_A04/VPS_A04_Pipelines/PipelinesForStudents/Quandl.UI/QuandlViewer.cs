@@ -20,10 +20,24 @@ namespace Quandl.UI
             service = new QuandlService();
         }
 
-        private void displayButton_Click(object sender, EventArgs e) {
-            SequentialImplementation();
+        private async void displayButton_Click(object sender, EventArgs e) {
+            //SequentialImplementation();
             //TODO: Parallel Implementations
+            await ParallelImplementation();
         }
+
+        private async Task ParallelImplementation() {
+            var seriesList = new List<Series>();
+            foreach (var name in names) {
+                var sd = await RetrieveStockDataAsync(name);
+                var values = sd.GetValues();
+                seriesList.Add(GetSeries(values, name));
+                seriesList.Add(GetTrend(values, name));
+            }
+            DisplayData(seriesList);
+            SaveImage("chart");
+        }
+
 
         private void SequentialImplementation() {
             List<Series> seriesList = new List<Series>();
@@ -41,6 +55,10 @@ namespace Quandl.UI
 
         private StockData RetrieveStockData(string name) {
             return service.GetData(name);
+        }
+
+        private async Task<StockData> RetrieveStockDataAsync(string name) {
+            return await Task.Run(() => RetrieveStockData(name));
         }
 
         private Series GetSeries(List<StockValue> stockValues, string name) {
