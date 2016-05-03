@@ -114,7 +114,9 @@ namespace Diffusions
             int y = e.Y;
 
             if (e.Button == MouseButtons.Left) {
+                _generator.Signal.Reset();
                 Reheat(_currentArea.Matrix, x, y, _currentArea.Width, _currentArea.Height, _TIP_SIZE, _DEFAULT_HEAT);
+                _generator.Signal.Set();
             }
         }
 

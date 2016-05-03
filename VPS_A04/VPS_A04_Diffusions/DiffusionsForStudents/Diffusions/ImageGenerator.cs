@@ -10,8 +10,10 @@ namespace Diffusions
     {
         private CancellationTokenSource _source;
         private bool _stopRequested;
- 
+        public ManualResetEvent Signal = new ManualResetEvent(true);
+
         public bool StopRequested => _stopRequested;
+        
 
         public void GenerateImage(Area area) {
             _source = new CancellationTokenSource();
@@ -20,6 +22,7 @@ namespace Diffusions
                 var swOverall = new Stopwatch();
                 swOverall.Start();
                 for (var i = 0; i < Settings.DefaultSettings.MaxIterations; i++) {
+                    Signal.WaitOne();
                     if (_source.Token.IsCancellationRequested)
                         return;
                     var sw = new Stopwatch();
