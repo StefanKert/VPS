@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Diffusions
@@ -37,7 +38,6 @@ namespace Diffusions
         private void Reheat(double[,] matrix, int x, int y, int width, int height, int size, double val) {
             for (int i = 0; i < size; i++) {
                 for (int j = 0; j < size; j++) {
-
                     matrix[(x + i)%width, (y + j)%height] = val;
                 }
             }
@@ -113,11 +113,15 @@ namespace Diffusions
             int x = e.X;
             int y = e.Y;
 
-            if (e.Button == MouseButtons.Left) {
+            if (!_generator.Started || e.Button != MouseButtons.Left)
+                return;
+
+            Task.Run(() => {
+                _generator.GeneratorPendingSignal.WaitOne();
                 _generator.Signal.Reset();
                 Reheat(_currentArea.Matrix, x, y, _currentArea.Width, _currentArea.Height, _TIP_SIZE, _DEFAULT_HEAT);
                 _generator.Signal.Set();
-            }
+            });
         }
 
         private void startButton_Click(object sender, EventArgs e) {

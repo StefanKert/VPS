@@ -9,20 +9,25 @@ namespace Diffusions
     public abstract class ImageGenerator: IImageGenerator
     {
         private CancellationTokenSource _source;
+        private bool _started;
         private bool _stopRequested;
         public ManualResetEvent Signal = new ManualResetEvent(true);
+        public AutoResetEvent GeneratorPendingSignal = new AutoResetEvent(false);
 
         public bool StopRequested => _stopRequested;
+        public bool Started => _started;
         
 
         public void GenerateImage(Area area) {
             _source = new CancellationTokenSource();
             _stopRequested = false;
+            _started = true;
             Task.Run(() => {
                 var swOverall = new Stopwatch();
                 swOverall.Start();
                 for (var i = 0; i < Settings.DefaultSettings.MaxIterations; i++) {
                     Signal.WaitOne();
+                    GeneratorPendingSignal.Reset();
                     if (_source.Token.IsCancellationRequested)
                         return;
                     var sw = new Stopwatch();
@@ -30,9 +35,11 @@ namespace Diffusions
                     var bm = GenerateBitmap(area);
                     OnImageGenerated(area, bm, sw.Elapsed);
                     sw.Stop();
+                    GeneratorPendingSignal.Set();
                 }
                 swOverall.Stop();
                 OnCalculationFinished(swOverall.Elapsed);
+                _started = false;
             }, _source.Token);
         }
 
