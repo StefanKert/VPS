@@ -17,7 +17,7 @@ namespace Diffusions
         public MainForm() {
             InitializeComponent();
             ResetImage();
-            //generator = new SyncImageGenerator();
+            //_generator = new SyncImageGenerator();
             _generator = new ParallelImageGenerator();
             _generator.ImageGenerated += generator_ImageGenerated;
             _generator.CalculationFinished += generator_CalculationFinished;
