@@ -1,95 +1,41 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using Quandl.API;
+#pragma warning disable 4014
 
 namespace Quandl.UI
 {
     public partial class QuandlViewer: Form
     {
-
-        private QuandlService service;
-        private string[] names = {"NASDAQ_MSFT", "NASDAQ_AAPL", "NASDAQ_GOOG"};
-        private const int INTERVAL = 2000;
-
+        private readonly IQuandlProcessor _processor;
+        private readonly string[] names = {"NASDAQ_MSFT", "NASDAQ_AAPL", "NASDAQ_GOOG"};
+     
         public QuandlViewer() {
             InitializeComponent();
-            service = new QuandlService();
+            var service = new QuandlService();
+            _processor = new AsyncAwaitQuandlProcessor(service); 
         }
 
         private async void displayButton_Click(object sender, EventArgs e) {
-            //SequentialImplementation();
-            //TODO: Parallel Implementations
-            await ParallelImplementation();
+            displayButton.Enabled = false;
+            OnDataRetrieved(await _processor.GetSeriesListsAsync(names));
         }
 
-        private async Task ParallelImplementation() {
-            var seriesList = new List<Series>();
-            foreach (var name in names) {
-                var sd = await RetrieveStockDataAsync(name);
-                var values = sd.GetValues();
-                seriesList.Add(GetSeries(values, name));
-                seriesList.Add(GetTrend(values, name));
-            }
-            DisplayData(seriesList);
+        private void OnDataRetrieved(IEnumerable<Series> series) {
+            DisplayData(series);
             SaveImage("chart");
+            displayButton.Enabled = true;
         }
 
-
-        private void SequentialImplementation() {
-            List<Series> seriesList = new List<Series>();
-
-            foreach (var name in names) {
-                StockData sd = RetrieveStockData(name);
-                List<StockValue> values = sd.GetValues();
-                seriesList.Add(GetSeries(values, name));
-                seriesList.Add(GetTrend(values, name));
-            }
-
-            DisplayData(seriesList);
-            SaveImage("chart");
-        }
-
-        private StockData RetrieveStockData(string name) {
-            return service.GetData(name);
-        }
-
-        private async Task<StockData> RetrieveStockDataAsync(string name) {
-            return await Task.Run(() => RetrieveStockData(name));
-        }
-
-        private Series GetSeries(List<StockValue> stockValues, string name) {
-            Series series = new Series(name);
-            series.ChartType = SeriesChartType.FastLine;
-
-            int j = 0;
-            for (int i = stockValues.Count - INTERVAL; i < stockValues.Count; i++) {
-                series.Points.Add(new DataPoint(j++, stockValues[i].Close));
-            }
-            return series;
-        }
-
-        private Series GetTrend(List<StockValue> stockValues, string name) {
-            double k, d;
-            Series series = new Series(name + " Trend");
-            series.ChartType = SeriesChartType.FastLine;
-
-            var vals = stockValues.Select(x => x.Close).ToArray();
-            LinearLeastSquaresFitting.Calculate(vals, out k, out d);
-
-            int j = 0;
-            for (int i = stockValues.Count - INTERVAL; i < stockValues.Count; i++) {
-                series.Points.Add(new DataPoint(j++, k*i + d));
-            }
-            return series;
-        }
-
-        private void DisplayData(List<Series> seriesList) {
+        private void DisplayData(IEnumerable<Series> seriesList) {
             chart.Series.Clear();
-            foreach (Series series in seriesList) {
+            foreach (var series in seriesList) {
                 chart.Series.Add(series);
             }
         }

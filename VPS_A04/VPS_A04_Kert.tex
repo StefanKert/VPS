@@ -43,4 +43,324 @@ tabsize=2
 \date{\today}
 \maketitle
 
+\section{Psychedelic Diffusions}
+
+\subsection{Synchrone Implementierung des Generators}
+Der erste Teil der Aufgabe besteht darin, einen Generator zu implementieren, der die geforderten Kriterien realisiert. Dies wurde bereits im Unterricht realisiert und es sollte daher hier nicht näher auf diesen Generator eingegangen werden. Der Vollständigkeit halber sollte hier aber der Quellcode für die GenerateBitmap Methode gezeigt werden. 
+
+\begin{lstlisting}
+    public class SyncImageGenerator : ImageGenerator
+    {
+        public override Bitmap GenerateBitmap(Area area) {
+            var matrix = area.Matrix;
+            var height = area.Height;
+            var width = area.Width;
+            var newMatrix = new double[width, height];
+            for (var i = 0; i < width; i++) {
+                for (var j = 0; j < height; j++) {
+                    var jp = (j + height - 1) % height;
+                    var jm = (j + 1) % height;
+                    var ip = (i + 1) % width;
+                    var im = (i + width - 1) % width;
+
+                    newMatrix[i, j] = (matrix[i, jp] + matrix[i, jm] + matrix[ip, j] + matrix[im, j] + matrix[ip, jp] + matrix[ip, jm] + matrix[im, jp] + matrix[im, jm]) / 8.0;
+                }
+            }
+            Bitmap bm = new Bitmap(width, height);
+            ColorBitmap(newMatrix, width, height, bm);
+            area.Matrix = newMatrix;
+            return bm;
+        }
+    }
+\end{lstlisting}
+
+Die Methode in welcher der obige Code aufgerufen wird, sodass die benötigten Iteration durchgeführt werden befindet sich im nächsten Listing.
+
+\begin{lstlisting}
+    public abstract class ImageGenerator: IImageGenerator
+    {
+        private bool _started;
+        private bool _stopRequested;
+        public bool StopRequested => _stopRequested;
+        public bool Started => _started;
+        
+
+        public void GenerateImage(Area area) {
+								_stopRequested = false;
+								_started = true;
+                var swOverall = new Stopwatch();
+                swOverall.Start();
+                for (var i = 0; i < Settings.DefaultSettings.MaxIterations; i++) {
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    var bm = GenerateBitmap(area);
+                    OnImageGenerated(area, bm, sw.Elapsed);
+                    sw.Stop();
+                }
+                swOverall.Stop();
+                OnCalculationFinished(swOverall.Elapsed);
+                _started = false;
+        }
+
+        public abstract Bitmap GenerateBitmap(Area area);
+
+        public virtual void ColorBitmap(double[,] array, int width, int height, Bitmap bm) {
+            var maxColorIndex = ColorSchema.Colors.Count - 1;
+
+            for (var i = 0; i < width; i++) {
+                for (var j = 0; j < height; j++) {
+                    var colorIndex = (int)array[i, j]%maxColorIndex;
+                    bm.SetPixel(i, j, ColorSchema.Colors[colorIndex]);
+                }
+            }
+        }
+
+        public event EventHandler<EventArgs<Tuple<TimeSpan>>> CalculationFinished;
+        public event EventHandler<EventArgs<Tuple<Area, Bitmap, TimeSpan>>> ImageGenerated;
+
+        protected void OnImageGenerated(Area area, Bitmap bitmap, TimeSpan timespan) {
+            ImageGenerated?.Invoke(this, new EventArgs<Tuple<Area, Bitmap, TimeSpan>>(new Tuple<Area, Bitmap, TimeSpan>(area, bitmap, timespan)));
+        }
+        protected void OnCalculationFinished(TimeSpan timespan)
+        {
+            CalculationFinished?.Invoke(this, new EventArgs<Tuple<TimeSpan>>(new Tuple<TimeSpan>(timespan)));
+        }
+
+        public virtual void Stop() {
+            _stopRequested = true;
+            OnCalculationFinished(new TimeSpan());
+        }
+    }
+
+\end{lstlisting}
+
+Der gezeigte Code wurde nur um eine Methode und ein Event erweitert, welches aufgerufen wird, sobald die alle Iterationen durchgeführt wurden und die Berechnung beendet wurde, sodass auch ein Gesamtergebnis für die benötigte Zeit angezeigt werden kann.
+
+\subsection{Locking, Synchronisierung und Asynchrone Ausführung}
+
+Ein weiterer Bestandteil war das Implementieren der Funktionalität zum Abbrechen des Vorganges, sowie zum Hinzufügen des - Reheating - mit dem weitere Elemente durch einen Mausklick erzeugt werden können, weiters sollte die Berechnung asynchron durchgeführt werden, sodass die Benutzeroberfläche während der Ausführen reagiert. Für diese Teile ist es einerseits notwendig eine Möglichkeit zu finden, wie der Thread zum Generieren der Bilder abgebrochen bzw. gestoppt werden kann. Für das Abbrechen der Berechnung wurde mittels der .NET Klasse \textit{CancellationToken} eine Möglichkeit hinzugefügt, den Vorgang abzubrechen. Um die Operation asynchron durchzuführen, wurde die Berechnung einfach mittels \textit{Task.Run()} in einem eigenen Thread ausgeführt. Durch die Verwendung von Events gibt es hierbei kein Synchronisierungsproblem, da beim Beenden die View mittels dieser Events über die Ergebnisse informiert wird, jedoch muss in beim Zugriff auf UI-Komponenten darauf geachtet werden, dass diese Operationen auf dem GUI Thread passieren, da es ansonsten zu Fehlern kommt. Für das Reheating wird mit Hilfe der Klasse \textit{AutoResetEvent}, welche sperrt wenn gerade eine Berechnung im Gange ist und mit Hilfe der Klasse \textit{ManuelResetEvent} wird die Berechnung gesperrt sobald der Benutzer mit der Maus auf die \textit{PictureBox} klickt um ein weiteres Element zu erzeugen. Im folgenden Listing wird gezeigt wie die Implementierung sich im Detail gestaltet.
+
+\begin{lstlisting}
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Diffusions
+{
+    public abstract class ImageGenerator: IImageGenerator
+    {
+        private CancellationTokenSource _source;
+        private bool _started;
+        private bool _stopRequested;
+        public ManualResetEvent Signal = new ManualResetEvent(true);
+        public AutoResetEvent GeneratorPendingSignal = new AutoResetEvent(false);
+
+        public bool StopRequested => _stopRequested;
+        public bool Started => _started;
+        
+
+        public void GenerateImage(Area area) {
+            _source = new CancellationTokenSource();
+            _stopRequested = false;
+            _started = true;
+            Task.Run(() => {
+                var swOverall = new Stopwatch();
+                swOverall.Start();
+                for (var i = 0; i < Settings.DefaultSettings.MaxIterations; i++) {
+                    Signal.WaitOne();
+                    GeneratorPendingSignal.Reset();
+                    if (_source.Token.IsCancellationRequested)
+                        return;
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    var bm = GenerateBitmap(area);
+                    OnImageGenerated(area, bm, sw.Elapsed);
+                    sw.Stop();
+                    GeneratorPendingSignal.Set();
+                }
+                swOverall.Stop();
+                OnCalculationFinished(swOverall.Elapsed);
+                _started = false;
+            }, _source.Token);
+        }
+
+        public abstract Bitmap GenerateBitmap(Area area);
+
+        public virtual void ColorBitmap(double[,] array, int width, int height, Bitmap bm) {
+            var maxColorIndex = ColorSchema.Colors.Count - 1;
+
+            for (var i = 0; i < width; i++) {
+                for (var j = 0; j < height; j++) {
+                    var colorIndex = (int)array[i, j]%maxColorIndex;
+                    bm.SetPixel(i, j, ColorSchema.Colors[colorIndex]);
+                }
+            }
+        }
+
+        public event EventHandler<EventArgs<Tuple<TimeSpan>>> CalculationFinished;
+        public event EventHandler<EventArgs<Tuple<Area, Bitmap, TimeSpan>>> ImageGenerated;
+
+        protected void OnImageGenerated(Area area, Bitmap bitmap, TimeSpan timespan) {
+            ImageGenerated?.Invoke(this, new EventArgs<Tuple<Area, Bitmap, TimeSpan>>(new Tuple<Area, Bitmap, TimeSpan>(area, bitmap, timespan)));
+        }
+        protected void OnCalculationFinished(TimeSpan timespan)
+        {
+            CalculationFinished?.Invoke(this, new EventArgs<Tuple<TimeSpan>>(new Tuple<TimeSpan>(timespan)));
+        }
+
+        public virtual void Stop() {
+            _stopRequested = true;
+            _source.Cancel();
+            OnCalculationFinished(new TimeSpan());
+        }
+    }
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+
+        private void pictureBox_MouseUp(object sender, MouseEventArgs e) {
+            int x = e.X;
+            int y = e.Y;
+
+            if (!_generator.Started || e.Button != MouseButtons.Left)
+                return;
+
+            Task.Run(() => {
+                _generator.GeneratorPendingSignal.WaitOne(); // Wait until current calculation has ended
+                _generator.Signal.Reset();
+                Reheat(_currentArea.Matrix, x, y, _currentArea.Width, _currentArea.Height, _TIP_SIZE, _DEFAULT_HEAT);
+                _generator.Signal.Set();
+            });
+        }
+\end{lstlisting}
+
+\subsection{Parallele Implementierung des Generators}
+
+Der letzte Teil der ersten Aufgabe war es, eine parallele Implementierung der synchronen \textit{GenerateImage} Methode zu implementieren. Auch diese Aufgabe wurde bereits während der Übungsstunde erledigt und es sollte hier lediglich der Code gezeigt werden, sowie kurz beschrieben werden wie sich der SpeedUp gestaltet.  Für die Implementierung wurden die Parallel Erweiterungen der TPL zur verwendet, da es mit diesen sehr einfach ist, Schleifen parallel durchzuführen und sich im Hintergrund die TPL um das verwalten der einzelnen Threads kümmert.
+
+\begin{lstlisting}
+    public class ParallelImageGenerator : ImageGenerator
+    {
+        public override Bitmap GenerateBitmap(Area area) {
+            var matrix = area.Matrix;
+            var height = area.Height;
+            var width = area.Width;
+            var newMatrix = new double[width, height];
+
+            Parallel.For(0, width, i => {
+                for (var j = 0; j < height; j++) {
+                    var jp = (j + height - 1)%height;
+                    var jm = (j + 1)%height;
+                    var ip = (i + 1)%width;
+                    var im = (i + width - 1)%width;
+
+                    newMatrix[i, j] = (matrix[i, jp] + matrix[i, jm] + matrix[ip, j] + matrix[im, j] + matrix[ip, jp] + matrix[ip, jm] + matrix[im, jp] + matrix[im, jm])/8.0;
+                }
+            });
+            Bitmap bm = new Bitmap(width, height);
+            ColorBitmap(newMatrix, width, height, bm);
+            area.Matrix = newMatrix;
+            return bm;
+        }
+    }
+\end{lstlisting}
+
+Da 
+
+\section{Stock Data Visualization}
+
+Die zweite Aufgabe bestand darin, eine Applikation, welche mittels Webrequest Daten von einem Webservice ausliest und diese in Form  von Diagrammen anzeigt anzupassen, sodass diese asynchron ausgeführt wird. Im Template war bereits eine Methode zum synchronen auslesen der Daten vorhanden. Diese hatte das Problem, dass während dem Auslesen keine Interatkion mit der View möglich war, weshalb diese Methode wie bereits beschrieben in eine asynchrone Methode umgewandelt werden sollte. Es sollte für diese Aufgabe eine Variante implementiert werden, welche die asynchrone (parallele) Ausführung laut dem gegebenen Aktivitätsdiagramm mittels \textit{Continuations} realisiert, sowie eine Variante welche dies mit dem seit .Net 4.5.2 neuen \textit{async/await} Sprachfeature ermöglicht. Für beide Versionen gilt, dass für die Synchronisierung des Zugriffs auf die Liste der Daten ein \textit{ConcurrentBag} verwendet wurde, bei dem es sich um eine Threadsafe Collection handelt.
+
+\subsection{Continuations Implementierung}
+Für die Variante, welche die gewünschte Ausführung mittels Continuations realisieren sollte wird in erster Linie auf die Grundfunktionen der TPL zurückgegriffen. Für diese Aufgabe ist eine der zentralen Methoden die \textit{ContinueWith()} Methode mit welcher angegeben werden kann, wie nach Beenden eines Tasks weitergemacht werden sollte. Teil dieser Aufgabe ist es auch, das Lesen der einzelnen Stockdaten zu parallelisieren. Dazu werden mittels der Linq Hilfsmethode \textit{Select()} Funktion für jeden übergebenen Stocknamen ein eigener Task erzeugt, welcher diese ausliest. Mittels der \textit{ContinueWith()} Funktion werden direkt danach die einzelnen \textit{Series} erzeugt. Dies sollte ebenfalls parallel passieren. Hier werden zwei Tasks gestartet welche zum Durchführen der Methoden \textit{GetSeries()} und \textit{GetTrend()} sowie zum Speichern der Ergebnise dieser in einer Liste dienen. Nach dem Initialisieren dieser wird in der \textit{ContinueWith()} Methode noch auf das beenden aller Tasks gewartet. Die Methode zum Erstellen von Tasks für die Stocknamen wird in einem eigenen Thread aufgerufen, wodurch die asynchrone Ausführung ermöglicht wird. In diesem Wrapper wird auf das beenden aller erstellten Tasks gewartet und schließlich das Ergebnis zurückgegeben. 
+
+\begin{lstlisting}
+    public class TaskContinueWithQuandlProcessor : BaseQuandlProcessor
+    {
+        public TaskContinueWithQuandlProcessor(QuandlService service) : base(service) { }
+
+        public override Task<IEnumerable<Series>> GetSeriesListsAsync(IEnumerable<string> stockNames) {
+            var seriesList = new ConcurrentBag<Series>();
+            return Task.Run(() => {
+                Task.WaitAll(CreateTasksFromStockNames(stockNames, seriesList));
+                return seriesList.AsEnumerable();
+            });
+        }
+
+        private Task[] CreateTasksFromStockNames(IEnumerable<string> stockNames, ConcurrentBag<Series> seriesList) {
+            return stockNames.Select(name => {
+                return RetrieveStockDataAsync(name).ContinueWith(x => {
+                    var values = x.Result.GetValues();
+                    var innerTasks = new List<Task> {
+                        Task.Run(() => seriesList.Add(GetSeries(values, name))),
+                        Task.Run(() => seriesList.Add(GetTrend(values, name)))
+                    };
+                    Task.WaitAll(innerTasks.ToArray());
+                });
+            }).ToArray();
+        }
+    }
+\end{lstlisting}
+
+Beim Aufruf muss jetzt nur noch mittels einer \textit{ContinueWith()} festgelegt werden, was nach dem Beenden aller Tasks passieren sollte. Hier noch der Vollständigkeit halber der Quellcode dafür.
+
+\begin{lstlisting}
+     private void displayButton_Click(object sender, EventArgs e) {
+            displayButton.Enabled = false;
+            _processor.GetSeriesListsAsync(names).ContinueWith(x => OnDataRetrieved(x.Result));
+			}
+		
+				private void OnDataRetrieved(IEnumerable<Series> series) {
+            DisplayData(series);
+            SaveImage("chart");
+            displayButton.Enabled = true;
+        }
+\end{lstlisting}
+
+\subsection{Async/await Implementierung}
+Bei der Implementierung mittels async/await wird sehr ähnlich vorgegangen. Auch in dieser Version wird mittels einer Methode \textit{CreateTasksFromStockNames} für jeden gwünschten Stock ein eigener Task erzeugt, welcher das Auslesen und Verarbeiten der Daten für diesen Stock übernimmt. Diese Tasks werden parallel ausgeführt, was zu einer Performanceverbesserung führen sollte. Im Unterschied zu der Version mit Continuations, kann hier mit Hilfe des Schlüsselwortes \textit{await} auf das Beenden der Funktion gewartet werden. Wichtig jedoch ist es hier darauf zu achten, dass mit \textit{await} eine synchrone Ausführung des Codes erzwungen wird, bzw. der Task in welchem dieser ausgeführt wird unterbrochen wird. Um für das Verarbeiten der Daten für die Serien sowie für die Trends denoch parallel durchführen zu können, ist es hier gleich wie bei der Version mit Continuations nötig jeweils eigene Tasks für diese beiden Aufgaben zu erzeugen. Mit Hilfe der Funktion \textit{Task.WhenAll()} wird auf die Beendung der beiden Methoden gewartet. Diese Methode wird erneut mit Hilfe von \textit{await} aufgerufen. 
+\begin{lstlisting}
+    public class AsyncAwaitQuandlProcessor : BaseQuandlProcessor
+    {
+        public AsyncAwaitQuandlProcessor(QuandlService service) : base(service) { }
+
+        public override async Task<IEnumerable<Series>> GetSeriesListsAsync(IEnumerable<string> stockNames) {
+            var seriesList = new ConcurrentBag<Series>();
+            await Task.WhenAll(CreateTasksFromStockNames(stockNames, seriesList));
+            return seriesList;
+        }
+
+
+        private Task[] CreateTasksFromStockNames(IEnumerable<string> stockNames, ConcurrentBag<Series> seriesList) {
+            return stockNames.Select(name => Task.Run(async () => {
+                var values = (await RetrieveStockDataAsync(name)).GetValues();
+                var innerTasks = new List<Task> {
+                    Task.Run(() => seriesList.Add(GetSeries(values, name))),
+                    Task.Run(() => seriesList.Add(GetTrend(values, name)))
+                };
+                await Task.WhenAll(innerTasks.Cast<Task>().ToArray());
+            })).ToArray();
+        }
+    }
+\end{lstlisting}
+
+Beim Aufruf in der GUI muss darauf geachtet werden, dass die Methode \textit{GetSeriesListsAsync()} mittels \textit{await} durchgeführt wird, da diese ansonsten nicht asynchron ausgeführt wird.
+Weiters ist es hier wichtig, dass die Methode als \textit{async} gekennzeichnet wird, da es ansonsten zu Kompilierungsfehlern kommt. Dies gilt für alle Funktionen, welche ein \textit{await} enthalten. 
+
+\begin{lstlisting}
+        private async void displayButton_Click(object sender, EventArgs e) {
+            displayButton.Enabled = false;
+            OnDataRetrieved(await _processor.GetSeriesListsAsync(names));
+        }
+
+        private void OnDataRetrieved(IEnumerable<Series> series) {
+            DisplayData(series);
+            SaveImage("chart");
+            displayButton.Enabled = true;
+        }
+\end{lstlisting}
+
 \end{document}
